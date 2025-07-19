@@ -20,6 +20,13 @@ export default defineConfig({
 					label: 'Reference',
 					autogenerate: { directory: 'reference' },
 				},
+				{
+					label: 'Examples',
+					items: [
+						// Each item here is one entry in the navigation menu.
+						{ label: 'list', slug: 'examples/list' },
+					],
+				},
 			],
 		}),
 	],
