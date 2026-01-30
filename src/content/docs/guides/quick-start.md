@@ -5,6 +5,10 @@ sidebar:
   order: 3
 ---
 
+# Introduction
+
+Knitting
+
 ```ts
 import { createPool, isMain, task } from "@vixeny/knitting";
 
@@ -25,8 +29,6 @@ const { call, shutdown } = createPool({
 
 if (isMain) {
   const jobs = [
-    call.hello(),
-    call.world(),
     call.hello(),
     call.world(),
   ];
