@@ -1,0 +1,117 @@
+---
+title: Welcome
+description: What knitting is and how it works.
+sidebar:
+  order: 1
+---
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Code } from '@astrojs/starlight/components';
+import { getCode, getCodeTitle } from '../../../lib/code-snippets';
+import nodeBench from '../../../assets/benchmark/md/node_test.md?raw';
+import nodeIpc from '../../../assets/benchmark/runtime/node/node_ipc.png';
+export const hello = getCode('hello_world.ts');
+
+## Why Knitting Exists
+
+JavaScript can do lots of things at once, but it can’t run CPU work in parallel on a single thread. That’s why **Workers** exist.
+
+But in real production apps, they’re still weirdly rare. Not because parallelism isn’t useful, but because the “default solution” drifted elsewhere: 
+
+* Promises made I/O concurrency painless.
+
+And when servers got hot it was often simpler to **scale out** (spawn another process/container) and communicate over `HTTP/WebSockets`.
+
+That works, but it has a cost: 
+
+* More `memory`.
+* More `moving pieces`.
+* More `latency`.
+* A whole extra layer of communication that has `nothing to do with your actual business logic`.
+
+Workers __*should*__ be the middle ground, yet the typical workflow is friction-heavy (pain):
+
+* `Create` a separate worker entry module
+* `Build` an event protocol on both sides
+* `Implement` routing and error handling
+* `Wrap` everything in promises
+* `Track` request IDs (and ordering, if you care about FIFO)
+* Then discover the overhead still makes lots of small tasks `not worth` offloading
+
+So you end up doing all that work just to get “some improvement”, only for IPC overhead to eat most of the win for anything that isn’t huge.
+
+> The problem isn’t compute. The problem is the *cost of reaching the compute*.
+
+Well, with **Knitting** you can do that `in 10 line`:
+
+<Code code={hello} lang="ts" title={"hello_world.ts"} />
+
+**Knitting exists to make “parallelize this” practical again**: define tasks once, spin up a pool, and call them like functions, 
+with shared-memory IPC designed to keep overhead low. The result is a worker workflow that “just works” and can be **4x to 200x faster** than 
+message-based IPC approaches depending on the workload.
+
+
+<Tabs>
+  <TabItem label="Graph">
+  <img
+  src={nodeIpc.src}
+  width={nodeIpc.width}
+  height={nodeIpc.height}
+  alt="Node IPC benchmark"
+  loading="lazy"
+/>
+  </TabItem>
+  <TabItem label="Data"><Code code={nodeBench} lang="md" title={"node_test.md"} /></TabItem>
+</Tabs>
+
+
+
+
+
+## What Knitting Is
+
+Knitting is an IPC protocol build for JS that keeps things simple:
+
+* You wrap a function with `task({ f })` (sync or async) and export it.
+* You create a pool with `createPool({ threads, options })`.
+* You call tasks from the main thread with call.`<task>(args:T)` getting a `Promise` .
+* You shut down cleanly when needed with shutdown().
+
+
+
+Core Design Ideas
+
+* Shared-memory first
+Reduce per-call overhead so more functions become worth parallelizing.
+* Tasks, not messages
+You export tasks (functions), and the pool executes them, instead of building your app around low-level message protocols.
+* Controllable routing and scheduling
+You can choose how calls are routed ("robinRound", "firstIdle", "randomLane", "firstIdleOrRandom"), and you can add an optional inline lane (inliner) to run some work on the main thread as an extra lane.
+
+
+
+Why It’s Fast (and When That Matters)
+
+Knitting aims to keep the “management cost” of parallelism low with gains from 4x to 100x. The biggest wins tend to show up when you have:
+
+* Many small-to-medium CPU tasks (where normal IPC overhead dominates)
+* Bursty workloads (batch + dispatch is cheaper than waking workers one-by-one)
+
+
+
+When it matters most:
+
+* You’re calling a task hundreds/thousands of times.
+* You’re parallelizing work that used to be “too small to bother”.
+* You care about tail latency under load and want explicit batching + tuning.
+
+
+
+What Knitting Is Good For
+
+Common “good fits”:
+
+* Math + simulation: repeated numeric kernels, Monte Carlo runs, physics-ish loops
+* Data transforms: parsing, compression-like steps, tokenization, feature extraction
+* Media-ish CPU work: image operations, hashing, checksums, encoding pipelines
+* Web apps with CPU spikes: keep the main thread responsive while offloading bursts
+* High-frequency background tasks: lots of little jobs where batching helps

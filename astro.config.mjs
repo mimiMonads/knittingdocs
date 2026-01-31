@@ -15,45 +15,37 @@ export default defineConfig({
       sidebar: [
         {
           label: "Getting Started",
-          items: [
-            { label: "Overview", slug: "guides/overview" },
-            { label: "Installation", slug: "guides/installation" },
-            { label: "Quick Start", slug: "guides/quick-start" },
-          ],
+          autogenerate: {
+            directory: "start"
+          }
         },
         {
           label: "Guides",
-          items: [
-            { label: "Defining Tasks", slug: "guides/defining-tasks" },
-            { label: "Creating Pools", slug: "guides/creating-pools" },
-            { label: "Batching and send()", slug: "guides/batching" },
-            { label: "Balancing Strategies", slug: "guides/balancing" },
-            { label: "Inliner Lane", slug: "guides/inliner" },
-            { label: "Task Timeouts", slug: "guides/timeouts" },
-            { label: "Runtime Tuning", slug: "guides/runtime-tuning" },
-            { label: "Custom Worker Entry", slug: "guides/custom-workers" },
-            { label: "Debugging", slug: "guides/debugging" },
-          ],
+          autogenerate: { directory: "guides"}
         },
         {
           label: "Reference",
+          collapsed: true,
           items: [
             { label: "API", slug: "reference/api" },
             {
               label: "createPool Options",
               slug: "reference/create-pool-options",
+              
             },
             { label: "Task Timeouts", slug: "reference/task-timeouts" },
             { label: "Supported Payloads", slug: "reference/payloads" },
-            { label: "Worker Entry", slug: "reference/worker-entry" },
           ],
         },
         {
           label: "Examples",
+          collapsed: true,
           autogenerate: { directory: "examples" },
         },
-        { label: "Benchmarks", slug: "benchmarks" },
-        { label: "License", slug: "license" },
+        { label: "Benchmarks",  
+          collapsed: true,
+          slug: "benchmarks" , autogenerate: { directory: "benchmarks"} },
+ 
       ],
     }),
   ],

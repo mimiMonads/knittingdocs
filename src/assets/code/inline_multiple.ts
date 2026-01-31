@@ -8,7 +8,12 @@ export const world = task({
   f: (args: string) => args + " world!",
 });
 
-const { call, shutdown } = createPool({})({
+const { call, shutdown } = createPool({
+  threads: 3,
+  inliner: {
+    position: "last"
+  }
+})({
   hello,
   world,
 });
@@ -16,7 +21,7 @@ const { call, shutdown } = createPool({})({
 if (isMain) {
   Promise.all(
     Array.from({
-      length: 4,
+      length: 5,
     }).map(
       () => call.world(call.hello()),
     ),
