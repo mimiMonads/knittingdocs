@@ -11,6 +11,12 @@ import nodeBench from '../../../assets/benchmark/md/node_test.md?raw';
 import nodeIpc from '../../../assets/benchmark/runtime/node/node_ipc.png';
 export const hello = getCode('hello_world.ts');
 
+
+Welcome! We are happy to see you around, hope you are in for the fun and enjoy our introduction,
+because this is for you, for all of those that wanted to make `JS multicore `vialable and competitive with real giants like `Rust` and `Go`.
+
+Lets dive in!
+
 ## Why Knitting Exists
 
 JavaScript can do lots of things at once, but it can’t run CPU work in parallel on a single thread. That’s why **Workers** exist.
@@ -41,13 +47,15 @@ So you end up doing all that work just to get “some improvement”, only for I
 
 > The problem isn’t compute. The problem is the *cost of reaching the compute*.
 
-Well, with **Knitting** you can do that `in 10 line`:
+Well, with **Knitting** you can do that `in 10 lines`:
 
 <Code code={hello} lang="ts" title={"hello_world.ts"} />
 
-**Knitting exists to make “parallelize this” practical again**: define tasks once, spin up a pool, and call them like functions, 
-with shared-memory IPC designed to keep overhead low. The result is a worker workflow that “just works” and can be **4x to 200x faster** than 
-message-based IPC approaches depending on the workload.
+**Knitting exists to make “parallelize this” practical again**: 
+
+- `Define` tasks once.
+- `Spin` up a pool.
+- `Call` them like functions.
 
 
 <Tabs>
@@ -66,52 +74,46 @@ message-based IPC approaches depending on the workload.
 
 
 
-
 ## What Knitting Is
 
-Knitting is an IPC protocol build for JS that keeps things simple:
+Knitting is an IPC (Interprocess Communication Communication) protocol built for JS that keeps things simple.
 
-* You wrap a function with `task({ f })` (sync or async) and export it.
-* You create a pool with `createPool({ threads, options })`.
-* You call tasks from the main thread with call.`<task>(args:T)` getting a `Promise` .
-* You shut down cleanly when needed with shutdown().
+But if you prefer fancy buzz words we can say:
+
+> Knitting is a full-duplex shared-memory IPC transport built from two independent 32-slot shared mailboxes (request + response), using bitset slot ownership and futex-style wakeups with optional spin-pause.
+
+### Core Design Ideas
 
 
-
-Core Design Ideas
-
-* Shared-memory first
-Reduce per-call overhead so more functions become worth parallelizing.
-* Tasks, not messages
+* **Tasks, not messages:**
 You export tasks (functions), and the pool executes them, instead of building your app around low-level message protocols.
-* Controllable routing and scheduling
-You can choose how calls are routed ("robinRound", "firstIdle", "randomLane", "firstIdleOrRandom"), and you can add an optional inline lane (inliner) to run some work on the main thread as an extra lane.
+* **Policy is configurable:**
+Routing strategy, batching limits, stall backoff, timeouts, inline execution and more to your dispose.
+* **Workers don’t cook the CPU:**
+Spin briefly, then park and wake up when needed.
 
 
 
-Why It’s Fast (and When That Matters)
+## Why It’s Fast (and When That Matters)
 
-Knitting aims to keep the “management cost” of parallelism low with gains from 4x to 100x. The biggest wins tend to show up when you have:
+Knitting keeps the management cost of parallelism low.
+The speedups don’t come from magic, they come from removing friction:
 
-* Many small-to-medium CPU tasks (where normal IPC overhead dominates)
-* Bursty workloads (batch + dispatch is cheaper than waking workers one-by-one)
-
-
-
-When it matters most:
-
-* You’re calling a task hundreds/thousands of times.
-* You’re parallelizing work that used to be “too small to bother”.
-* You care about tail latency under load and want explicit batching + tuning.
+* `Low IPC overhead:` shared-memory mailboxes avoid serialization and message hops.
+* `Batch-friendly execution:` work is encoded, dispatched, and resolved through a pipelined flow.
+* `Sleep instead of spin:` workers park and wake only when there’s work.
+* `Event-loop friendly:` runtimes are designed to cooperate with the event loop — no blocking, no forced `await`, predictable execution.
+* `Pressure-responsive:` higher load improves throughput instead of stalling.
 
 
+This matters most when the cost of reaching the compute is comparable to the compute itself.
 
-What Knitting Is Good For
+## What Knitting Is Good For
 
-Common “good fits”:
+Knitting shines in workloads that mix CPU pressure with burstiness:
 
-* Math + simulation: repeated numeric kernels, Monte Carlo runs, physics-ish loops
-* Data transforms: parsing, compression-like steps, tokenization, feature extraction
-* Media-ish CPU work: image operations, hashing, checksums, encoding pipelines
-* Web apps with CPU spikes: keep the main thread responsive while offloading bursts
-* High-frequency background tasks: lots of little jobs where batching helps
+* `Math and simulation:` numeric kernels, Monte Carlo, physics-style loops.
+* `Data transforms:` parsing, compression steps, tokenization, feature extraction.
+* `Media pipelines:` image operations, hashing, encoding.
+* `Web servers with CPU spikes:` keep the main thread responsive under load.
+* `High-frequency background jobs:` lots of small tasks where batching pays off.
