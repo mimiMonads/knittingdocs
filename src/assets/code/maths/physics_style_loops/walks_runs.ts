@@ -25,7 +25,7 @@ const RUNS_PER_JOB = intArg("batch", 5_000);
 const MAX_STEPS = intArg("steps", 15_000);
 const RADIUS = numArg("radius", 100);
 
-const { fastCall, send, shutdown } = createPool({
+const { call, send, shutdown } = createPool({
   threads: THREADS,
   balancer: "firstIdle",
   // Optional: inliner helps if each job is too small.
@@ -45,7 +45,7 @@ async function main() {
     // Spread seeds per job so streams differ
     const seed = (seedBase + (j * 0x6d2b79f5)) | 0;
 
-    jobs[j] = fastCall.walkChunk([seed, runs, MAX_STEPS, RADIUS]);
+    jobs[j] = call.walkChunk([seed, runs, MAX_STEPS, RADIUS]);
   }
 
   // Kick dispatcher once after enqueueing a batch

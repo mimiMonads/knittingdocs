@@ -1,35 +1,80 @@
 ---
-title: Physics Loop
-description: 0w0
+title: Monte Carlo pi
+description: "Estimate π with parallel Monte Carlo"
+hero:
+  title: 'Parallel Monte Carlo π'
 sidebar:
-  order: 6
+  order: 2
+
 ---
 
-# Parallel Monte Carlo Simulation
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Code } from '@astrojs/starlight/components';
+import { getCode } from '../../../../lib/code-snippets';
+
+export const run = getCode("maths/monte_carlo/pi.ts");
+export const pi_chunk = getCode("maths/monte_carlo/montecarlo_pi.ts");
 
 ## What is this about
 
-This example shows how to run a **Monte Carlo simulation in parallel** using **Knitting’s worker pool**. Monte Carlo methods estimate quantities by repeating a randomized experiment many times and aggregating results. The trick is simple: **many independent trials**, each cheap on its own, become powerful when you run them at scale.
+This example estimates **π (pi)** using a classic **Monte Carlo dartboard** idea, and uses Knitting to run the work across threads.
 
-In this project we split the simulation into **chunks**. Each worker computes statistics for its chunk and returns a small summary (counts / sums). The host collects these summaries to produce the final estimate.
+We throw lots of random points into a square and count how many land inside the unit circle:
 
+* Points are uniform in $$[-1,1]\times[-1,1]$$
+* A point is “inside” if $$x^2 + y^2 \le 1$$
+
+Because areas scale nicely, we get:
+$$
+\pi \approx 4 \cdot \frac{\text{inside}}{\text{total}}
+$$
+
+The fun part: every point is independent, so it’s **embarrassingly parallel**.
 
 ## What happens in this example
 
 1. The host creates a **pool of workers**.
-2. The simulation is divided into **jobs** (chunks), each with:
+2. The host divides the total sample count into **chunks**.
+3. For each chunk, the host calls the worker task `piChunk(seed, samples)`.
+4. Each worker runs a tight inner loop:
 
-   * a seed (so results can be reproducible)
-   * a number of samples to run
-3. The host queues many jobs using `fastCall`.
-4. The host calls `send()` once to dispatch the whole batch efficiently.
-5. Workers run tight inner loops and return compact results.
-6. The host aggregates partial results into final metrics and prints them.
+   * generate `(x, y)` with a fast deterministic RNG
+   * count how many fall inside the unit circle
+5. Each chunk returns a tiny summary: `{ inside, samples }`.
+6. The host aggregates chunk results and prints the final π estimate (plus a rough error scale).
 
 This structure mirrors real scientific workloads:
 
 * **embarrassingly parallel**: each chunk can run independently
 * **reduce step**: results are combined at the end
+
+## Commands
+
+:::info
+Bun
+```bash
+src/pi.ts --threads 6 --samples 50000000 --chunk 1000000
+```
+Deno
+```bash
+deno run -A src/pi.ts --threads 6 --samples 50000000 --chunk 1000000
+```
+
+Node
+```bash
+npx tsx src/pi.ts --threads 6 --samples 50000000 --chunk 1000000
+```
+:::
+
+## Code
+<Tabs>
+  <TabItem label="pi.ts">
+    <Code code={run} lang="ts" title={"pi.ts"} />
+  </TabItem>
+  <TabItem label="montecarlo_pi.ts">
+    <Code code={pi_chunk} lang="ts" title={"montecarlo_pi.ts"} />
+  </TabItem>
+</Tabs>
 
 ## What is this good for
 
@@ -57,15 +102,20 @@ If you can phrase your problem as “run many trials and combine results,” Kni
 ### Monte Carlo in one sentence
 
 Monte Carlo approximates an expected value by averaging outcomes from randomized trials:
-
+$$
+\mathbb{E}[X] \approx \frac{1}{N}\sum_{i=1}^{N} X_i
+$$
 
 ### Why it works
 
-As (N) grows, the estimate converges by the **Law of Large Numbers**.
+As $$N$$ grows, the estimate converges by the **Law of Large Numbers**.
 
 ### Error behavior
 
 Monte Carlo error typically shrinks like:
+$$
+\text{error} \propto \frac{1}{\sqrt{N}}
+$$
 
 This is why doubling accuracy is expensive: to reduce error by 10×, you often need ~100× more samples.
 
@@ -73,8 +123,8 @@ This is why doubling accuracy is expensive: to reduce error by 10×, you often n
 
 Scientific simulations need to be repeatable. That’s why this example uses deterministic seeds:
 
-* fixed world seed (same scenario)
-* different run seeds (independent trials)
+* one base seed per run (so you can reproduce a result)
+* different per-chunk seeds (so chunks don’t reuse the same random stream)
 
 ---
 
@@ -82,12 +132,10 @@ Scientific simulations need to be repeatable. That’s why this example uses det
 
 The simulation is split into **chunks**:
 
-* Each chunk returns partial statistics like:
+* Each chunk returns partial statistics:
 
-  * `countInside`
-  * `sum`
-  * `sumSquares`
-  * `totalSamples`
+  * `inside`
+  * `samples`
 
 The host then combines chunk outputs. This is a standard pattern:
 
@@ -113,28 +161,20 @@ Start with chunk sizes like:
 
 * `100k` to `5M` iterations per job (depends on your loop cost)
 
-### 2) Prefer batching with `send()`
+### 2) Keep the inner loop “boringly tight”
 
-Queue a bunch of `fastCall`s, then dispatch once:
+Avoid allocations and avoid calling expensive RNG APIs in your hot path. This example uses a tiny deterministic RNG (xorshift32) for speed.
 
-* fewer wakeups
-* better throughput
-* more stable performance
-
-### 3) Use `fastCall` on hot paths
-
-If you’re queuing many jobs, `fastCall` helps reduce per-call overhead.
-
-### 4) Seed carefully
+### 3) Seed carefully
 
 Use:
 
-* one fixed `worldSeed` (controls the scenario)
-* a different `runSeed` for each job (controls randomness)
+* one base seed (so a run is reproducible)
+* different per-chunk seeds (so chunks don’t share the same random stream)
 
 This avoids accidental correlation between chunks.
 
-### 5) Validate results (don’t trust vibes)
+### 4) Validate results (don’t trust vibes)
 
 When teaching or benchmarking:
 
@@ -166,3 +206,11 @@ When teaching or benchmarking:
 * p99 latency is stable
 * results are reproducible under fixed seeds
 
+---
+
+## Suggested exercises
+
+1. Increase `--samples` and watch how the estimate stabilizes.
+2. Try different `--chunk` sizes and measure throughput.
+3. Fix the seed base and confirm the output is identical across runs.
+4. Modify the worker to also return timing per chunk and plot a histogram.

@@ -31,7 +31,7 @@ async function main() {
   // Seed base: stable-ish, different each run
   const seedBase = ((Date.now() | 0) ^ 0x9e3779b9) | 0;
 
-  // Use fastCall in tight loops (Knitting exposes it for this reason). :contentReference[oaicite:6]{index=6}
+  // Queue one worker task per chunk.
   for (let i = 0; i < jobCount; i++) {
     const remaining = TOTAL_SAMPLES - i * CHUNK_SAMPLES;
     const samples = remaining >= CHUNK_SAMPLES ? CHUNK_SAMPLES : remaining;

@@ -19,7 +19,7 @@ const ITERS = intArg("iters", 10);
 const worldSeed = intArg("worldSeed", 123456);
 const seedBase = (Date.now() | 0) ^ 0x9e3779b9;
 
-const { fastCall, send, shutdown } = createPool({
+const { call, send, shutdown } = createPool({
   threads: THREADS,
   balancer: "firstIdle",
 })({ solveTspGsa });
@@ -119,7 +119,7 @@ async function main() {
 
   for (let r = 0; r < RESTARTS; r++) {
     const runSeed = (seedBase + r * 0x6d2b79f5) | 0;
-    jobs.push(fastCall.solveTspGsa([worldSeed, runSeed, N, POP, ITERS]));
+    jobs.push(call.solveTspGsa([worldSeed, runSeed, N, POP, ITERS]));
   }
 
   // Batch dispatch
