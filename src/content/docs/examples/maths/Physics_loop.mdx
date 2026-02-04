@@ -1,0 +1,155 @@
+---
+title: Physics Loop
+description: 0w0
+sidebar:
+  order: 7
+---
+
+# Parallel Monte Carlo Physics Loop
+
+## What is this about
+
+This example runs a **physics-style simulation loop** (tight, step-by-step state updates) using **Monte Carlo sampling**, and parallelizes it with **Knitting’s worker pool**.
+
+Instead of “pure math kernels” (like estimating π), we simulate a physical process repeatedly. Each run evolves a state through time steps, so the workload looks like real-world physics and game loops: update position, apply rules, check events, repeat.
+
+In this example the process is a **2D random-walk / diffusion model**: particles move with random directions until they **escape a boundary**. We measure statistics like escape probability and time-to-escape.
+
+
+## What happens in this example
+
+1. The host creates a **pool** with `createPool`.
+2. The simulation is split into **chunks** (jobs). Each job runs many independent particle trials.
+3. Each worker executes a **tight inner loop**:
+
+   * initialize particle state `(x, y)`
+   * for each step:
+
+     * choose a random direction
+     * update `(x, y)`
+     * test escape condition (radius reached)
+4. Each chunk returns **compact summary stats**:
+
+   * number of escaped particles
+   * total runs in this chunk
+   * sum of escape steps (and optionally sum of squares)
+5. The host aggregates chunk results into final estimates.
+
+This is the standard scientific pattern:
+
+* **map**: simulate many independent trials
+* **reduce**: combine partial statistics into global results
+
+
+## What is this good for
+
+Physics-style Monte Carlo is useful when:
+
+* dynamics are too complex for closed-form solutions
+* you need probabilities, expected times, or distributions
+* your system is stochastic (randomness is part of the model)
+
+Real use cases:
+
+* **diffusion / Brownian motion** (escape times, mean squared displacement)
+* **hitting time problems** in stochastic processes
+* **Monte Carlo transport** (particles moving through materials)
+* **agent-based models** (crowd, traffic, epidemics)
+* **game simulation** (probabilistic outcomes, balancing, AI)
+* **uncertainty propagation** through a simulation pipeline
+
+If your problem is “simulate it many times and average the outcome”, this structure fits.
+
+
+## Scientific background
+
+
+### Why it converges
+
+As the number of independent runs (N) increases, estimates converge by the **Law of Large Numbers**.
+
+### How error scales
+
+Monte Carlo accuracy usually improves like:
+
+
+
+So reducing error by 2× costs about 4× more runs.
+
+### “Physics loop” note
+
+This simulation is a discrete-time approximation of a continuous stochastic process. Smaller step sizes and more steps can approximate continuous diffusion better, but cost more compute.
+
+
+## How parallelization works here
+
+The simulation is **embarrassingly parallel**:
+
+* Each particle run is independent (given its RNG stream)
+* We split runs across workers
+* Each worker returns a **small summary** instead of per-step trajectories
+
+This is important: returning full paths would waste bandwidth and memory. For Monte Carlo, you usually only need aggregated statistics.
+
+
+## Lessons on using the scripts
+
+### 1) Chunk size matters
+
+Pick a chunk size that amortizes overhead:
+
+* too small → dispatch overhead dominates
+* too large → worse load balance and slower feedback
+
+A good starting point is something like:
+
+* `runsPerJob = 10k to 200k` for heavier loops
+* increase if each run is short
+
+
+### 2) Prefer batch dispatch
+
+
+Queue many `fastCall`s, then call `send()` once. This reduces 
+scheduling overhead and tends to improve throughput.
+
+
+### 3) Use deterministic RNG and seed properly
+
+Scientific simulations need reproducibility:
+
+* `worldSeed`: controls fixed scenario parameters (boundary radius, direction table, etc.)
+* `runSeed`: different per job to avoid correlated streams
+
+### 4) Keep the inner loop “boringly tight”
+
+Performance comes from avoiding overhead inside the physics loop:
+
+* avoid allocations per step
+* avoid creating objects per iteration
+* precompute direction tables if possible
+* use simple numeric types
+
+### 5) Validate with invariants
+
+Always check:
+
+* `0 <= escaped <= totalRuns`
+* totals add up exactly across chunks
+* results are stable under fixed seeds
+
+
+## Performance notes
+
+### When you’ll see speedups
+
+* many runs, each with many steps
+* little to no IO
+* chunk results are small
+* you have multiple physical cores
+
+
+
+
+
+

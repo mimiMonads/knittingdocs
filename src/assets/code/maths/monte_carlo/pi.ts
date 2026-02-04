@@ -11,13 +11,16 @@ function intArg(name: string, fallback: number) {
 }
 
 // Tunables (pick any numbers you like)
-const TOTAL_SAMPLES = intArg("samples", 5_000_000_000);
+const TOTAL_SAMPLES = intArg("samples", 50_000_000_000);
 const CHUNK_SAMPLES = intArg("chunk", 10_000_000);
-const THREADS = intArg("threads", 5);
+const THREADS = intArg("threads", 6);
 
 const { call,  shutdown } = createPool({
   threads: THREADS,
-  inliner: { position: "last", },
+  inliner: { 
+    position: "last", 
+    batchSize: 8
+  },
   balancer: "firstIdle",
 })({ piChunk });
 

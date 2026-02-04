@@ -1,0 +1,168 @@
+---
+title: Physics Loop
+description: 0w0
+sidebar:
+  order: 6
+---
+
+# Parallel Monte Carlo Simulation
+
+## What is this about
+
+This example shows how to run a **Monte Carlo simulation in parallel** using **Knitting’s worker pool**. Monte Carlo methods estimate quantities by repeating a randomized experiment many times and aggregating results. The trick is simple: **many independent trials**, each cheap on its own, become powerful when you run them at scale.
+
+In this project we split the simulation into **chunks**. Each worker computes statistics for its chunk and returns a small summary (counts / sums). The host collects these summaries to produce the final estimate.
+
+
+## What happens in this example
+
+1. The host creates a **pool of workers**.
+2. The simulation is divided into **jobs** (chunks), each with:
+
+   * a seed (so results can be reproducible)
+   * a number of samples to run
+3. The host queues many jobs using `fastCall`.
+4. The host calls `send()` once to dispatch the whole batch efficiently.
+5. Workers run tight inner loops and return compact results.
+6. The host aggregates partial results into final metrics and prints them.
+
+This structure mirrors real scientific workloads:
+
+* **embarrassingly parallel**: each chunk can run independently
+* **reduce step**: results are combined at the end
+
+## What is this good for
+
+Monte Carlo parallelization is a great fit for problems where:
+
+* experiments are independent
+* you want better accuracy by increasing sample count
+* the model is expensive or high-dimensional
+
+Common uses:
+
+* **Numerical integration** (estimate integrals you can’t solve analytically)
+* **Uncertainty propagation** (how noisy inputs affect outputs)
+* **Risk estimation** (finance, reliability engineering)
+* **Statistical physics** (random walks, Ising models, diffusion)
+* **Computer graphics** (path tracing / light transport approximations)
+* **Optimization** (randomized search / sampling-based heuristics)
+
+If you can phrase your problem as “run many trials and combine results,” Knitting can usually help.
+
+---
+
+## Scientific background you should know
+
+### Monte Carlo in one sentence
+
+Monte Carlo approximates an expected value by averaging outcomes from randomized trials:
+
+
+### Why it works
+
+As (N) grows, the estimate converges by the **Law of Large Numbers**.
+
+### Error behavior
+
+Monte Carlo error typically shrinks like:
+
+This is why doubling accuracy is expensive: to reduce error by 10×, you often need ~100× more samples.
+
+### Reproducibility matters
+
+Scientific simulations need to be repeatable. That’s why this example uses deterministic seeds:
+
+* fixed world seed (same scenario)
+* different run seeds (independent trials)
+
+---
+
+## How parallelization is done here
+
+The simulation is split into **chunks**:
+
+* Each chunk returns partial statistics like:
+
+  * `countInside`
+  * `sum`
+  * `sumSquares`
+  * `totalSamples`
+
+The host then combines chunk outputs. This is a standard pattern:
+
+* **map**: compute chunk stats
+* **reduce**: aggregate stats
+
+Key idea: send back **small summaries**, not giant arrays. Less copying, less overhead, more speed.
+
+---
+
+## Lessons on using the scripts
+
+### 1) Choose chunk sizes that make sense
+
+Each task should do enough work to justify dispatch overhead.
+
+Rule of thumb:
+
+* If tasks are too small, overhead dominates → slower than single-threaded
+* If tasks are too big, you reduce load balancing and responsiveness
+
+Start with chunk sizes like:
+
+* `100k` to `5M` iterations per job (depends on your loop cost)
+
+### 2) Prefer batching with `send()`
+
+Queue a bunch of `fastCall`s, then dispatch once:
+
+* fewer wakeups
+* better throughput
+* more stable performance
+
+### 3) Use `fastCall` on hot paths
+
+If you’re queuing many jobs, `fastCall` helps reduce per-call overhead.
+
+### 4) Seed carefully
+
+Use:
+
+* one fixed `worldSeed` (controls the scenario)
+* a different `runSeed` for each job (controls randomness)
+
+This avoids accidental correlation between chunks.
+
+### 5) Validate results (don’t trust vibes)
+
+When teaching or benchmarking:
+
+* recompute an output on the host
+* validate invariants (counts non-negative, totals match)
+* check that results stay stable if you fix seeds
+
+---
+
+## Performance notes and what to look for
+
+### When you should see speedups
+
+* simulation loop is CPU-heavy
+* minimal allocation inside the loop
+* chunks are large enough
+* you have multiple physical cores
+
+### When you might not
+
+* you have tiny tasks
+* your loop spends time in IO or awaits
+* memory bandwidth is the bottleneck
+* your chunk result is huge and expensive to transfer
+
+### What “good behavior” looks like
+
+* throughput increases with more threads (until cores saturate)
+* p99 latency is stable
+* results are reproducible under fixed seeds
+

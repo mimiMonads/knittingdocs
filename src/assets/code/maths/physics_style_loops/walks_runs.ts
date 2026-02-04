@@ -19,10 +19,10 @@ function numArg(name: string, fallback: number) {
 }
 
 // Tunables (pick any data you like)
-const THREADS = intArg("threads", 7);
-const TOTAL_RUNS = intArg("runs", 10_000_000);
+const THREADS = intArg("threads", 6);
+const TOTAL_RUNS = intArg("runs", 15_000_000);
 const RUNS_PER_JOB = intArg("batch", 5_000);
-const MAX_STEPS = intArg("steps", 9_065);
+const MAX_STEPS = intArg("steps", 15_000);
 const RADIUS = numArg("radius", 100);
 
 const { fastCall, send, shutdown } = createPool({
