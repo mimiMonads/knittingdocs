@@ -1,0 +1,92 @@
+---
+title: Nodejs
+description: Nodejs Performance.
+sidebar:
+  order: 2
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Code } from '@astrojs/starlight/components';
+import { getCode } from '../../../lib/code-snippets';
+import nodeIpcBench from '../../../assets/results/node_ipc.md?raw';
+import nodeIpc from '../../../assets/charts/node_ipc.png';
+import nodeTypesBench from '../../../assets/results/node_types.md?raw';
+import nodeTypesOne from '../../../assets/charts/node_types_types_count1.png'
+import nodeTypesHundred from '../../../assets/charts/node_types_types_count100.png'
+import nodeHeavyLoad from '../../../assets/results/node_withload.md?raw';
+import nodeAllTypes from '../../../assets/results/node_types_knitting.md?raw';
+import nodeScalle from '../../../assets/results/node_multi.md?raw';
+
+## IPC (node)
+lorem
+
+### Data
+<Tabs>
+  <TabItem label="Node">
+    <img
+      src={nodeIpc.src}
+      width={nodeIpc.width}
+      height={nodeIpc.height}
+      alt="Node IPC benchmark"
+      loading="lazy"
+    />
+  </TabItem>
+  <TabItem label="Node_data">
+    <Code code={nodeIpcBench} lang="md" title={"node_ipc.md"} />
+  </TabItem>
+</Tabs>
+
+## Knitting vs Worker (node)
+Info 
+### One message 
+<Tabs>
+  <TabItem label="knitting vs worker 1">
+    <img
+      src={nodeTypesOne.src}
+      width={nodeTypesOne.width}
+      height={nodeTypesOne.height}
+      alt="Node knitting vs worker benchmark 1"
+      loading="lazy"
+    />
+  </TabItem>
+  <TabItem label="Data">
+    <Code code={nodeTypesBench} lang="md" title={"node_types.md"} />
+  </TabItem>
+</Tabs>
+### Hundred messages 
+<Tabs>
+  <TabItem label="knitting vs worker 100">
+    <img
+      src={nodeTypesHundred.src}
+      width={nodeTypesHundred.width}
+      height={nodeTypesHundred.height}
+      alt="Node knitting vs worker benchmark 100"
+      loading="lazy"
+    />
+  </TabItem>
+  <TabItem label="Data">
+    <Code code={nodeTypesBench} lang="md" title={"node_types.md"} />
+  </TabItem>
+</Tabs>
+## Efficiency under worse tasks (node)
+
+This task is horrible bc is  calculating prime numbers from:
+
+  const N = 10_000_000; // search range: [1..N]
+  const CHUNK_SIZE = 250_000;
+
+making it having to parse JSON with huge quantity of numers that have to also be strintified
+### Data
+<Code code={nodeHeavyLoad} lang="md" title={"node_stress.md"} />
+
+## All types in Knitting
+Info to be added (only to be added 1 and 100)
+
+### Data
+<Code code={nodeAllTypes} lang="md" title={"node_All.md"} />
+
+## All types in Knitting
+Info to be added (only to be added 1 and 100)
+
+### Data
+<Code code={nodeAllTypes} lang="md" title={"node_All.md"} />
