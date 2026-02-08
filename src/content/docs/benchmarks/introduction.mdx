@@ -1,23 +1,19 @@
 ---
 title: Benchmarks
-description: Run the official benchmark suite.
+description: Overall benchmark overview across Node, Deno, and Bun.
 sidebar:
   order: 1
 ---
 
-import latencyLine from "../../assets/benchmark/global/latency_line.png";
-import ipcCombined from "../../assets/benchmark/global/ipc_combined.png";
-import bunTypesCount1 from "../../assets/benchmark/runtime/bun/bun_types_types_count1.png";
-import bunTypesCount100 from "../../assets/benchmark/runtime/bun/bun_types_types_count100.png";
-import bunIpc from "../../assets/benchmark/runtime/bun/bun_ipc.png";
-import denoTypesCount1 from "../../assets/benchmark/runtime/deno/deno_types_types_count1.png";
-import denoTypesCount100 from "../../assets/benchmark/runtime/deno/deno_types_types_count100.png";
-import denoIpc from "../../assets/benchmark/runtime/deno/deno_ipc.png";
-import nodeTypesCount1 from "../../assets/benchmark/runtime/node/node_types_types_count1.png";
-import nodeTypesCount100 from "../../assets/benchmark/runtime/node/node_types_types_count100.png";
-import nodeIpc from "../../assets/benchmark/runtime/node/node_ipc.png";
+import ipcCombined from "../../../assets/charts/ipc_combined.png";
+import latencyLine from "../../../assets/charts/latency_line.png";
+import typesCombinedCount1 from "../../../assets/charts/types_combined_count1.png";
+import typesCombinedCount100 from "../../../assets/charts/types_combined_count100.png";
+import withloadSpeedup from "../../../assets/charts/withload_speedup.png";
+import withloadEfficiency from "../../../assets/charts/withload_efficiency.png";
 
-Knitting includes benchmarks under `bench/` to compare Node, Deno, and Bun.
+This page is the high-level benchmark summary across Node, Deno, and Bun.
+For runtime-specific detail, see the dedicated pages for Node, Deno, and Bun.
 
 ## Run the suite
 
@@ -35,126 +31,94 @@ Results are written into `results/`.
 
 JSON output is useful for plotting scripts under `graphs/`.
 
-## Charts
+## What these benchmarks measure
 
-Charts live under `src/assets/benchmark/` with `global/` for cross-runtime metrics and `runtime/` for runtime-specific plots.
+- IPC overhead between main and worker threads
+- End-to-end message latency as batch size increases
+- Payload sensitivity (primitive, structured, and binary types)
+- Heavy-task scaling and parallel efficiency under CPU-intensive workloads
 
-### Global
+## IPC (combined)
 
-#### Latency
+The IPC combined chart compares Knitting against worker `postMessage`, websocket, and HTTP across runtimes.
 
-<img
-  src={latencyLine.src}
-  width={latencyLine.width}
-  height={latencyLine.height}
-  alt="Latency line chart"
-  loading="lazy"
-/>
-
-#### IPC (combined)
+- At one message, Knitting is typically about `3.5x-6x` faster than worker `postMessage`.
+- Against websocket, Knitting is usually around `3.5x-15x` faster.
+- Against HTTP, Knitting is usually around `10x-57x` faster for the same benchmark shape.
 
 <img
   src={ipcCombined.src}
   width={ipcCombined.width}
   height={ipcCombined.height}
-  alt="IPC benchmark combined chart"
+  alt="Combined IPC benchmark chart across runtimes"
   loading="lazy"
 />
 
-### Runtime
+## Latency (line)
 
-#### Bun
+This chart shows how latency changes as the number of messages per iteration increases.
 
-##### IPC
+- Across runtimes and batch sizes, Knitting is generally around `3x-45x` faster than worker baselines.
+- The advantage is strongest in small-to-medium batch ranges where message overhead dominates.
+- At very large batches, absolute latency rises for all approaches, but Knitting still keeps lower overhead.
 
 <img
-  src={bunIpc.src}
-  width={bunIpc.width}
-  height={bunIpc.height}
-  alt="Bun IPC benchmark"
+  src={latencyLine.src}
+  width={latencyLine.width}
+  height={latencyLine.height}
+  alt="Latency line chart across runtimes"
   loading="lazy"
 />
 
-##### Types (count 1)
+## Payload Types (combined)
+
+These two charts compare type-dependent overhead at count `1` and count `100`.
+
+- Count `1`: Knitting remains low-latency even for structured and binary payloads.
+- Count `100`: batching increases throughput while preserving strong relative performance.
+- Heavier payload classes (e.g. large objects/arrays, errors) cost more in every runtime, but Knitting keeps the best profile overall.
 
 <img
-  src={bunTypesCount1.src}
-  width={bunTypesCount1.width}
-  height={bunTypesCount1.height}
-  alt="Bun types benchmark, count 1"
+  src={typesCombinedCount1.src}
+  width={typesCombinedCount1.width}
+  height={typesCombinedCount1.height}
+  alt="Combined types benchmark chart for count 1"
   loading="lazy"
 />
-
-##### Types (count 100)
 
 <img
-  src={bunTypesCount100.src}
-  width={bunTypesCount100.width}
-  height={bunTypesCount100.height}
-  alt="Bun types benchmark, count 100"
+  src={typesCombinedCount100.src}
+  width={typesCombinedCount100.width}
+  height={typesCombinedCount100.height}
+  alt="Combined types benchmark chart for count 100"
   loading="lazy"
 />
 
-#### Deno
+## Heavy Load: Speedup and Efficiency
 
-##### IPC
+Heavy-load benchmarks run a CPU-intensive prime-number workload and distribute work across extra threads.
+
+- Speedup grows steadily as threads are added, reaching roughly `3.5x-3.8x` at `+4` extra threads in these runs.
+- Efficiency remains strong under contention, staying around `~70-77%` at higher thread counts.
+- Bun and Deno show slightly stronger scaling than Node in this specific heavy-load scenario.
 
 <img
-  src={denoIpc.src}
-  width={denoIpc.width}
-  height={denoIpc.height}
-  alt="Deno IPC benchmark"
+  src={withloadSpeedup.src}
+  width={withloadSpeedup.width}
+  height={withloadSpeedup.height}
+  alt="Heavy-load speedup chart across runtimes"
   loading="lazy"
 />
-
-##### Types (count 1)
 
 <img
-  src={denoTypesCount1.src}
-  width={denoTypesCount1.width}
-  height={denoTypesCount1.height}
-  alt="Deno types benchmark, count 1"
+  src={withloadEfficiency.src}
+  width={withloadEfficiency.width}
+  height={withloadEfficiency.height}
+  alt="Heavy-load efficiency chart across runtimes"
   loading="lazy"
 />
 
-##### Types (count 100)
+## Where to read details
 
-<img
-  src={denoTypesCount100.src}
-  width={denoTypesCount100.width}
-  height={denoTypesCount100.height}
-  alt="Deno types benchmark, count 100"
-  loading="lazy"
-/>
-
-#### Node
-
-##### IPC
-
-<img
-  src={nodeIpc.src}
-  width={nodeIpc.width}
-  height={nodeIpc.height}
-  alt="Node IPC benchmark"
-  loading="lazy"
-/>
-
-##### Types (count 1)
-
-<img
-  src={nodeTypesCount1.src}
-  width={nodeTypesCount1.width}
-  height={nodeTypesCount1.height}
-  alt="Node types benchmark, count 1"
-  loading="lazy"
-/>
-
-##### Types (count 100)
-
-<img
-  src={nodeTypesCount100.src}
-  width={nodeTypesCount100.width}
-  height={nodeTypesCount100.height}
-  alt="Node types benchmark, count 100"
-  loading="lazy"
-/>
+- Use this page for cross-runtime trends.
+- Use `benchmarks/node`, `benchmarks/deno`, and `benchmarks/bun` for raw tables and per-runtime interpretation.
