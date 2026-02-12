@@ -37,7 +37,6 @@ createPool({
     strategy: "robinRound" | "firstIdle" | "randomLane" | "firstIdleOrRandom"
   } | "robinRound" | "firstIdle" | "randomLane" | "firstIdleOrRandom",
   worker?: {
-    resolveAfterFinishingAll?: true,
     timers?: {
       spinMicroseconds?: number,
       parkMs?: number,
@@ -96,8 +95,7 @@ Controls how calls are routed across lanes (threads, plus the optional inliner).
 
 ## inliner
 
-Adds an extra lane that runs tasks on the main thread (useful for very small
-tasks where worker overhead dominates).
+Adds an extra lane that runs tasks on the main thread.
 
 - `position`: whether the inline lane appears before (`"first"`) or after
   (`"last"`) the worker lanes for balancing purposes.
@@ -108,18 +106,8 @@ tasks where worker overhead dominates).
   plus inline lane are scheduled.
   This option has effect only when `inliner` is enabled.
 
-:::note
-Migration: `host.dispatchThreshold` was removed. Use
-`inliner.dispatchThreshold` instead.
-:::
 
 ## worker
-
-### resolveAfterFinishingAll
-
-When set to `true`, the worker preferentially flushes results after it has
-drained its current work queue. This can improve throughput for some workloads
-at the cost of latency for early results.
 
 ### timers
 
@@ -131,7 +119,7 @@ is no work.
 Busy-spin budget before the worker parks (microseconds). Larger values can
 reduce latency under bursty load but increase CPU usage.
 
-Defaults to `max(1, totalLanes) * 50`, where `totalLanes = threads + (inliner ? 1 : 0)`.
+Defaults to `max(1, totalLanes) * 35`, where `totalLanes = threads + (inliner ? 1 : 0)`.
 
 #### parkMs
 

@@ -121,7 +121,7 @@ export default defineConfig({
           },
         },
       ],
-      customCss: ["./src/styles/katex.css"],
+      customCss: ["./src/styles/katex.css", "./src/styles/headings.css"],
       social: [{
         icon: "github",
         label: "GitHub",

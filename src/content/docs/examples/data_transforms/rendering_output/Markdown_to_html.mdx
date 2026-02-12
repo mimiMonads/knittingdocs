@@ -1,6 +1,6 @@
 ---
 title: Markdown to HTML
-description: Convert markdown strings to HTML in workers or on the host.
+description: Clean markdown-to-HTML example plus a separate mitata benchmark.
 hero:
   title: 'Markdown rendering'
 sidebar:
@@ -12,15 +12,15 @@ import { Code } from '@astrojs/starlight/components';
 import { getCode } from '../../../../../lib/code-snippets';
 
 export const run = getCode("data_transforms/markdown_to_html/run_markdown_to_html.ts");
+export const bench = getCode("data_transforms/markdown_to_html/bench_markdown_to_html.ts");
 export const render_markdown = getCode("data_transforms/markdown_to_html/render_markdown.ts");
 
 ## What is this about
 
-This example is a simple rendering pipeline:
+This page has two parts:
 
-1. Receive markdown strings.
-2. Convert markdown to HTML.
-3. Return rendered output plus lightweight metrics (`bytes`, `headings`, `words`).
+1. A clean example (`run_markdown_to_html.ts`) that focuses on usage and correctness.
+2. A dedicated heavy benchmark (`bench_markdown_to_html.ts`) that uses `mitata` to compare host and worker throughput.
 
 It complements React SSR as another **Rendering & Output** example.
 
@@ -30,44 +30,71 @@ It complements React SSR as another **Rendering & Output** example.
 Bun
 ```bash
 bun add marked
+bun add -d mitata
 ```
 :::
 
-## Commands
+`mitata` is only required for the benchmark script.
+
+## Example command
 
 :::info
 Bun
 ```bash
-src/run_markdown_to_html.ts --threads 2 --docs 25000 --mode knitting
+bun src/run_markdown_to_html.ts --threads 2
 ```
 Deno
 ```bash
-deno run -A src/run_markdown_to_html.ts --threads 2 --docs 25000 --mode knitting
+deno run -A src/run_markdown_to_html.ts --threads 2
 ```
 
 Node
 ```bash
-npx tsx src/run_markdown_to_html.ts --threads 2 --docs 25000 --mode knitting
-```
-
-Host baseline (no workers)
-```bash
-src/run_markdown_to_html.ts --docs 25000 --mode host
+npx tsx src/run_markdown_to_html.ts --threads 2
 ```
 :::
 
-## What happens in this example
+## Benchmark command (mitata)
 
-1. The host generates markdown documents.
-2. Each worker runs `marked.parse(...)` and computes tiny summary stats.
-3. The host aggregates totals and prints throughput.
-4. You compare this against `--mode host` to decide whether workers help.
+:::info
+Bun
+```bash
+bun src/bench_markdown_to_html.ts --threads 2 --docs 2000
+```
+Node
+```bash
+npx tsx src/bench_markdown_to_html.ts --threads 2 --docs 2000
+```
+:::
+
+## What happens in the example
+
+1. Render one markdown document on the host.
+2. Render the same markdown in a worker task.
+3. Compare the HTML output from both paths.
+
+## What the benchmark measures
+
+- `host`: parse `N` markdown docs on the main thread.
+- `knitting`: run `N` docs through a worker pool.
+- Each document runs: parse markdown -> Brotli compress -> return raw compressed bytes.
+- The benchmark validates host-vs-worker raw bytes before timing starts.
+
+:::note
+In this benchmark the limiting factor is often **moving bytes**, not CPU threads.
+Both modes must allocate and touch the compressed output, and the worker mode also
+has to transfer those bytes back to the host. Once byte movement dominates,
+adding more threads stops helping (and can increase memory pressure).
+:::
 
 ## Code
 
 <Tabs>
   <TabItem label="run_markdown_to_html.ts">
     <Code code={run} lang="ts" title={"run_markdown_to_html.ts"} />
+  </TabItem>
+  <TabItem label="bench_markdown_to_html.ts">
+    <Code code={bench} lang="ts" title={"bench_markdown_to_html.ts"} />
   </TabItem>
   <TabItem label="render_markdown.ts">
     <Code code={render_markdown} lang="ts" title={"render_markdown.ts"} />
@@ -76,6 +103,6 @@ src/run_markdown_to_html.ts --docs 25000 --mode host
 
 ## Why this pattern matters
 
-- Rendering can become CPU-heavy at high document counts.
-- Returning compact metrics keeps IPC overhead low.
-- The same host-vs-worker pattern used in SSR applies cleanly here.
+- The example stays easy to read and copy.
+- Performance discussion moves to a heavier benchmark that prints real numbers.
+- The benchmark path better reflects workloads where worker offload can pay off.

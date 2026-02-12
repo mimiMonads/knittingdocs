@@ -1,6 +1,6 @@
 ---
 title: Schema validate
-description: Parse JSON strings, validate with Zod, and return typed results.
+description: Clean Zod validation example plus a dedicated mitata benchmark.
 hero:
   title: 'Validation + parsing'
 sidebar:
@@ -12,18 +12,15 @@ import { Code } from '@astrojs/starlight/components';
 import { getCode } from '../../../../../lib/code-snippets';
 
 export const run = getCode("data_transforms/schema_validate/run_schema_validate.ts");
+export const bench = getCode("data_transforms/schema_validate/bench_schema_validate.ts");
 export const schema_validate = getCode("data_transforms/schema_validate/parse_validate.ts");
 
 ## What is this about
 
-This example takes a **string payload**, parses it as JSON, validates it with a
-schema, and returns either:
+This page has two parts:
 
-- a typed object, or
-- a list of validation issues.
-
-It follows a common API path:
-`string -> parse -> validate -> return`.
+1. A practical validation example (`run_schema_validate.ts`) with typed success/error results.
+2. A dedicated benchmark (`bench_schema_validate.ts`) that measures Zod throughput with `mitata`.
 
 ## Install
 
@@ -31,29 +28,39 @@ It follows a common API path:
 Bun
 ```bash
 bun add zod
+bun add -d mitata
 ```
 :::
 
-## Commands
+`mitata` is only required for the benchmark script.
+
+## Example command
 
 :::info
 Bun
 ```bash
-src/run_schema_validate.ts --threads 2 --requests 50000 --invalid 15 --mode knitting
+bun src/run_schema_validate.ts --threads 2 --requests 2000 --invalid 15 --mode knitting
 ```
 Deno
 ```bash
-deno run -A src/run_schema_validate.ts --threads 2 --requests 50000 --invalid 15 --mode knitting
+deno run -A src/run_schema_validate.ts --threads 2 --requests 2000 --invalid 15 --mode knitting
 ```
-
 Node
 ```bash
-npx tsx src/run_schema_validate.ts --threads 2 --requests 50000 --invalid 15 --mode knitting
+npx tsx src/run_schema_validate.ts --threads 2 --requests 2000 --invalid 15 --mode knitting
 ```
+:::
 
-Host baseline (no workers)
+## Benchmark command (mitata)
+
+:::info
+Bun
 ```bash
-src/run_schema_validate.ts --requests 50000 --invalid 15 --mode host
+bun src/bench_schema_validate.ts --threads 2 --requests 50000 --invalid 15 --batch 64
+```
+Node
+```bash
+npx tsx src/bench_schema_validate.ts --threads 2 --requests 50000 --invalid 15 --batch 64
 ```
 :::
 
@@ -65,11 +72,27 @@ src/run_schema_validate.ts --requests 50000 --invalid 15 --mode host
 4. The task returns `{ ok: true, value }` or `{ ok: false, issues }`.
 5. The host aggregates valid/invalid counts and prints sample issues.
 
+## What the benchmark measures
+
+- `host`: `JSON.parse + UserSchema.safeParse` on `N` payloads.
+- `knitting`: the same `N` payloads through worker threads.
+- Requests are sent as batches (`--batch`) so per-call IPC overhead is amortized.
+- Worker tasks return only `{ valid, invalid }` counts to keep transport overhead low.
+
+:::note
+For this benchmark, batching is important. Very small batches mostly measure
+dispatch overhead; very large batches can increase memory pressure and tail
+latency. Tune `--batch` for your workload.
+:::
+
 ## Code
 
 <Tabs>
   <TabItem label="run_schema_validate.ts">
     <Code code={run} lang="ts" title={"run_schema_validate.ts"} />
+  </TabItem>
+  <TabItem label="bench_schema_validate.ts">
+    <Code code={bench} lang="ts" title={"bench_schema_validate.ts"} />
   </TabItem>
   <TabItem label="parse_validate.ts">
     <Code code={schema_validate} lang="ts" title={"parse_validate.ts"} />
@@ -78,6 +101,6 @@ src/run_schema_validate.ts --requests 50000 --invalid 15 --mode host
 
 ## Why this pattern matters
 
-- You get deterministic validation behavior across host and workers.
-- Schema errors are explicit and easy to aggregate for reporting.
-- Typed outputs reduce downstream checks in render or transform stages.
+- It gives you a clean parse/validate example you can reuse directly.
+- It provides a benchmark path that is fast, fair, and explicit about tradeoffs.
+- It keeps typed validation results for app code while using compact outputs for performance tests.
