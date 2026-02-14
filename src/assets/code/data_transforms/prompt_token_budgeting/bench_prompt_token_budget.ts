@@ -58,7 +58,8 @@ function makeHistory(i: number): string[] {
 
   for (let t = 0; t < turns; t++) {
     const topic = pick(TOPICS, i + t);
-    history[t] = `Need guidance on ${topic}. Include practical steps and one small code example.`;
+    history[t] =
+      `Need guidance on ${topic}. Include practical steps and one small code example.`;
   }
 
   return history;
@@ -90,7 +91,10 @@ function makeBatches<T>(values: T[], batchSize: number): T[][] {
   return batches;
 }
 
-function mergeSummary(a: PromptBudgetSummary, b: PromptBudgetSummary): PromptBudgetSummary {
+function mergeSummary(
+  a: PromptBudgetSummary,
+  b: PromptBudgetSummary,
+): PromptBudgetSummary {
   return {
     rawTokens: a.rawTokens + b.rawTokens,
     budgetedTokens: a.budgetedTokens + b.budgetedTokens,
@@ -165,10 +169,11 @@ async function main() {
   }
   const inputBatches = makeBatches(inputs, BATCH);
 
-  const pool = createPool({ threads: THREADS - 1,
+  const pool = createPool({
+    threads: THREADS - 1,
     inliner: {
-      batchSize: 8
-    }
+      batchSize: 8,
+    },
   })({ preparePromptBatchFast });
   let sink = 0;
 
@@ -197,13 +202,18 @@ async function main() {
           sink = totals.budgetedTokens;
         });
 
-        bench(`knitting (${THREADS} thread${THREADS === 1 ? "" : "s"}, ${REQUESTS.toLocaleString()} req, batch ${BATCH})`, async () => {
-          const totals = await runWorkerBatches(
-            pool.call.preparePromptBatchFast,
-            inputBatches,
-          );
-          sink = totals.budgetedTokens;
-        });
+        bench(
+          `knitting (${THREADS} thread${
+            THREADS === 1 ? "" : "s"
+          }, ${REQUESTS.toLocaleString()} req, batch ${BATCH})`,
+          async () => {
+            const totals = await runWorkerBatches(
+              pool.call.preparePromptBatchFast,
+              inputBatches,
+            );
+            sink = totals.budgetedTokens;
+          },
+        );
       });
     });
 

@@ -64,7 +64,12 @@ export type DemoRequestOptions = {
   renewWindowSec?: number;
 };
 
-function clampInt(value: unknown, fallback: number, min: number, max: number): number {
+function clampInt(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
   const numberValue = Number(value);
   if (!Number.isFinite(numberValue)) return fallback;
   const integer = Math.floor(numberValue);
@@ -122,8 +127,13 @@ function parseClaims(value: unknown): JwtClaims | null {
   if (typeof sub !== "string" || sub.length === 0) return null;
   if (typeof sid !== "string" || sid.length === 0) return null;
   if (!Array.isArray(scope) || scope.length === 0) return null;
-  if (!scope.every((item) => typeof item === "string" && item.length > 0)) return null;
-  if (!Number.isInteger(iat) || !Number.isInteger(exp) || !Number.isInteger(renewUntil)) {
+  if (!scope.every((item) => typeof item === "string" && item.length > 0)) {
+    return null;
+  }
+  if (
+    !Number.isInteger(iat) || !Number.isInteger(exp) ||
+    !Number.isInteger(renewUntil)
+  ) {
     return null;
   }
   if (exp <= iat) return null;
@@ -147,30 +157,47 @@ async function getHmacKey(secret: string): Promise<CryptoKey> {
   return keyPromise;
 }
 
-async function signInput(signingInput: string, secret: string): Promise<string> {
+async function signInput(
+  signingInput: string,
+  secret: string,
+): Promise<string> {
   const key = await getHmacKey(secret);
-  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(signingInput));
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    encoder.encode(signingInput),
+  );
   return bytesToBase64Url(new Uint8Array(signature));
 }
 
-async function verifyToken(token: string, secret: string): Promise<JwtClaims | null> {
+async function verifyToken(
+  token: string,
+  secret: string,
+): Promise<JwtClaims | null> {
   try {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
     const [headerPart, payloadPart, signaturePart] = parts;
     if (!headerPart || !payloadPart || !signaturePart) return null;
 
-    const headerRaw = safeParseJson(decoder.decode(base64UrlToBytes(headerPart)));
+    const headerRaw = safeParseJson(
+      decoder.decode(base64UrlToBytes(headerPart)),
+    );
     if (!isRecord(headerRaw)) return null;
     if (headerRaw.alg !== "HS256") return null;
     if (headerRaw.typ !== "JWT") return null;
 
-    const expectedSignature = await signInput(`${headerPart}.${payloadPart}`, secret);
+    const expectedSignature = await signInput(
+      `${headerPart}.${payloadPart}`,
+      secret,
+    );
     const expectedBytes = base64UrlToBytes(expectedSignature);
     const providedBytes = base64UrlToBytes(signaturePart);
     if (!fixedTimeEqual(expectedBytes, providedBytes)) return null;
 
-    const payloadRaw = safeParseJson(decoder.decode(base64UrlToBytes(payloadPart)));
+    const payloadRaw = safeParseJson(
+      decoder.decode(base64UrlToBytes(payloadPart)),
+    );
     return parseClaims(payloadRaw);
   } catch {
     return null;
@@ -180,7 +207,9 @@ async function verifyToken(token: string, secret: string): Promise<JwtClaims | n
 function parseRevalidateRequest(rawRequest: string): RevalidateRequest | null {
   const parsed = safeParseJson(rawRequest);
   if (!isRecord(parsed)) return null;
-  if (typeof parsed.token !== "string" || parsed.token.length === 0) return null;
+  if (typeof parsed.token !== "string" || parsed.token.length === 0) {
+    return null;
+  }
 
   return {
     token: parsed.token,
@@ -190,7 +219,11 @@ function parseRevalidateRequest(rawRequest: string): RevalidateRequest | null {
   };
 }
 
-function shouldRenewToken(claims: JwtClaims, nowSec: number, renewWindowSec: number): boolean {
+function shouldRenewToken(
+  claims: JwtClaims,
+  nowSec: number,
+  renewWindowSec: number,
+): boolean {
   if (nowSec > claims.renewUntil) return false;
   return nowSec >= claims.exp - renewWindowSec;
 }
@@ -217,7 +250,9 @@ export async function revalidateTokenObjectHost(
   secret = DEMO_JWT_SECRET,
 ): Promise<RevalidateResponse> {
   const request = parseRevalidateRequest(rawRequest);
-  if (!request) return responseError("payload: expected JSON { token, nowSec? }");
+  if (!request) {
+    return responseError("payload: expected JSON { token, nowSec? }");
+  }
 
   const nowSec = clampInt(
     request.nowSec,
@@ -225,7 +260,12 @@ export async function revalidateTokenObjectHost(
     1,
     2_147_483_647,
   );
-  const ttlSec = clampInt(request.ttlSec, DEFAULT_TTL_SEC, MIN_TTL_SEC, MAX_TTL_SEC);
+  const ttlSec = clampInt(
+    request.ttlSec,
+    DEFAULT_TTL_SEC,
+    MIN_TTL_SEC,
+    MAX_TTL_SEC,
+  );
   const renewWindowSec = clampInt(
     request.renewWindowSec,
     DEFAULT_RENEW_WINDOW_SEC,
@@ -234,7 +274,9 @@ export async function revalidateTokenObjectHost(
   );
 
   const claims = await verifyToken(request.token, secret);
-  if (!claims) return responseError("token: invalid signature, claims, or format");
+  if (!claims) {
+    return responseError("token: invalid signature, claims, or format");
+  }
 
   const renewable = shouldRenewToken(claims, nowSec, renewWindowSec);
   if (renewable) {
@@ -307,7 +349,12 @@ function addSummary(
 export async function revalidateTokenBatchFastHost(
   rawRequests: string[],
 ): Promise<RenewalSummary> {
-  let totals: RenewalSummary = { ok: 0, renewed: 0, rejected: 0, outputBytes: 0 };
+  let totals: RenewalSummary = {
+    ok: 0,
+    renewed: 0,
+    rejected: 0,
+    outputBytes: 0,
+  };
 
   for (let i = 0; i < rawRequests.length; i++) {
     const response = await revalidateTokenObjectHost(rawRequests[i]!);
@@ -323,7 +370,12 @@ export const revalidateTokenBatchFast = task<string[], RenewalSummary>({
 });
 
 export function summarizeJsonResponses(rawResponses: string[]): RenewalSummary {
-  const totals: RenewalSummary = { ok: 0, renewed: 0, rejected: 0, outputBytes: 0 };
+  const totals: RenewalSummary = {
+    ok: 0,
+    renewed: 0,
+    rejected: 0,
+    outputBytes: 0,
+  };
 
   for (let i = 0; i < rawResponses.length; i++) {
     const raw = rawResponses[i]!;
@@ -359,7 +411,12 @@ export async function buildDemoRevalidateRequests(
     1,
     2_147_483_647,
   );
-  const ttlSec = clampInt(options.ttlSec, DEFAULT_TTL_SEC, MIN_TTL_SEC, MAX_TTL_SEC);
+  const ttlSec = clampInt(
+    options.ttlSec,
+    DEFAULT_TTL_SEC,
+    MIN_TTL_SEC,
+    MAX_TTL_SEC,
+  );
   const renewWindowSec = clampInt(
     options.renewWindowSec,
     DEFAULT_RENEW_WINDOW_SEC,

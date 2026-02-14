@@ -132,6 +132,21 @@ import BenchmarkBalls from "../../components/BenchmarkBalls.astro";
 
     </Card>
 
+    <Card title="One more thread, big impact">
+      A common pattern: offload the expensive path (SSR, parsing, crypto, compression) to a worker so the main
+      route loop stays responsive under mixed load.
+
+      This is an 80/20 problem: a small fraction of work often dominates latency and throughput. Fix the dominant
+      path first, then measure again.
+
+      Taguchi-style thinking helps here: run small, controlled experiments (same request mix, same concurrency),
+      change one factor (like worker threads), and pick the setting that is robust across noise (GC, CPU contention,
+      bursty traffic).
+
+      Try it in the Hono server example:
+      - [Hono + SSR + JWT](/examples/data_transforms/rendering_output/Hono_server)
+    </Card>
+
         <Card title="10+ diverse examples (and growing)">
       There is enough here to copy real patterns, not just toy snippets.
       We keep adding examples as new workflows land.

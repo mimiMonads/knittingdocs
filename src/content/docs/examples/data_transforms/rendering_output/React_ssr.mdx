@@ -1,6 +1,6 @@
 ---
 title: React SSR
-description: A practical React SSR example with a clear host-vs-worker benchmark.
+description: A practical React SSR example with a simple host-vs-worker benchmark.
 hero:
   title: 'React SSR'
 sidebar:
@@ -13,15 +13,23 @@ import { Code } from '@astrojs/starlight/components';
 import { getCode } from '../../../../../lib/code-snippets';
 import DontDoubleParseTip from '../../../../../components/tips/DontDoubleParseTip.astro';
 
-export const run = getCode("data_transforms/react_ssr/run_ssr.ts");
-export const render_user_card = getCode("data_transforms/react_ssr/render_user_card.tsx");
+export const run = getCode("data_transforms/react_ssr/react_ssr_knitting.ts");
+export const bench = getCode("data_transforms/react_ssr/bench_react_ssr.ts");
+export const component = getCode("data_transforms/react_ssr/render_user_card.tsx");
 
 ## What is this about
 
-This page has two parts:
+This example is split into three files:
 
-1. A practical SSR example (`run_ssr.ts`) that keeps the pipeline simple: parse -> validate -> render.
-2. A side-by-side benchmark using the same script in `--mode knitting` and `--mode host`.
+1. `react_ssr_knitting.ts` runs parse + SSR in host and Knitting modes.
+2. `render_user_card.tsx` isolates the SSR component and task.
+3. `bench_react_ssr.ts` runs a quick benchmark with fixed settings (no flags).
+
+## Technologies used (and why)
+
+- **React SSR (`renderToString`)**: models a realistic server render workload.
+- **Knitting tasks**: compares direct host function calls and worker task calls with the same renderer.
+- **JSON payload strings**: keeps parse + normalize cost visible, not just render cost.
 
 ## Install
 
@@ -35,85 +43,71 @@ bun add react react-dom
 This page uses Bun for simplicity, but the same setup also works in Node and
 Deno.
 
-## Example command
-
-Run this first to confirm the example is working end-to-end.
+## Run
 
 :::info
 Bun
 ```bash
-bun src/run_ssr.ts --threads 2 --requests 1000 --mode knitting
+bun src/react_ssr_knitting.ts
 ```
 Deno
 ```bash
-deno run -A src/run_ssr.ts --threads 2 --requests 1000 --mode knitting
+deno run -A src/react_ssr_knitting.ts
 ```
 Node
 ```bash
-npx tsx src/run_ssr.ts --threads 2 --requests 1000 --mode knitting
+npx tsx src/react_ssr_knitting.ts
 ```
 :::
 
-## Benchmark commands
-
-Then run both modes with the same request count and compare throughput.
+## Quick bench
 
 :::info
 Bun
 ```bash
-bun src/run_ssr.ts --threads 2 --requests 50000 --mode knitting
-```
-Host baseline (no workers)
-```bash
-bun src/run_ssr.ts --requests 50000 --mode host
+bun src/bench_react_ssr.ts
 ```
 Deno
 ```bash
-deno run -A src/run_ssr.ts --threads 2 --requests 50000 --mode knitting
-```
-Host baseline (no workers)
-```bash
-deno run -A src/run_ssr.ts --requests 50000 --mode host
+deno run -A src/bench_react_ssr.ts
 ```
 Node
 ```bash
-npx tsx src/run_ssr.ts --threads 2 --requests 50000 --mode knitting
-```
-Host baseline (no workers)
-```bash
-npx tsx src/run_ssr.ts --requests 50000 --mode host
+npx tsx src/bench_react_ssr.ts
 ```
 :::
 
 ## What happens in the example
 
 1. The host generates JSON payload strings.
-2. In `--mode knitting`, the host sends each payload to `renderUserCard`.
-3. The task parses JSON, applies defaults, and renders HTML with React SSR.
-4. In `--mode host`, the same work runs on the main thread.
-5. The runner prints throughput so the two modes are easy to compare.
+2. `renderUserCardHost` executes directly on the host for baseline numbers.
+3. `renderUserCard` executes the same logic through worker tasks.
+4. Both paths produce byte counts from rendered HTML.
+5. The benchmark prints host throughput, worker throughput, and uplift.
 
 ## What the benchmark measures
 
-- `host`: parse + validate + render `N` requests on the main thread.
-- `knitting`: run the same `N` requests through worker threads.
-- Payloads are intentionally small, so transfer overhead is still visible.
-- The output shape is `{ html, bytes }`, which keeps aggregation straightforward.
+- `host`: parse + normalize + render using direct imports.
+- `knitting`: the same payload set through task calls in a worker pool.
+- Byte parity is reported so output equivalence stays visible.
 
 <DontDoubleParseTip />
 
 ## Code
 <Tabs>
-  <TabItem label="run_ssr.ts">
-    <Code code={run} lang="ts" title={"run_ssr.ts"} />
+  <TabItem label="react_ssr_knitting.ts">
+    <Code code={run} lang="ts" title={"react_ssr_knitting.ts"} />
+  </TabItem>
+  <TabItem label="bench_react_ssr.ts">
+    <Code code={bench} lang="ts" title={"bench_react_ssr.ts"} />
   </TabItem>
   <TabItem label="render_user_card.tsx">
-    <Code code={render_user_card} lang="tsx" title={"render_user_card.tsx"} />
+    <Code code={component} lang="tsx" title={"render_user_card.tsx"} />
   </TabItem>
 </Tabs>
 
 ## Why this pattern matters
 
-- It shows a realistic parse/validate/render flow.
-- It keeps host and worker paths directly comparable with one runner script.
-- It is a solid baseline before adding compression, caching, or streaming output.
+- It isolates component logic from orchestration and benchmarking.
+- It keeps benchmark commands simple and reproducible.
+- It compares host imports and task execution with one workload shape.

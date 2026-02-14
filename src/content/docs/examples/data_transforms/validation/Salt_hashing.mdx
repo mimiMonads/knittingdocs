@@ -1,6 +1,6 @@
 ---
 title: Salt hashing
-description: Password salting + PBKDF2 hashing example with a typed-array benchmark path.
+description: Password salting + PBKDF2 hashing with a simple host-vs-worker benchmark.
 hero:
   title: 'Salting + hashing'
 sidebar:
@@ -11,61 +11,62 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 import { Code } from '@astrojs/starlight/components';
 import { getCode } from '../../../../../lib/code-snippets';
 
-export const run = getCode("data_transforms/salt_hashing/run_salt_hashing.ts");
+export const run = getCode("data_transforms/salt_hashing/salt_knitting.ts");
 export const bench = getCode("data_transforms/salt_hashing/bench_salt_hashing.ts");
-export const salt_hashing = getCode("data_transforms/salt_hashing/salt_hashing.ts");
+export const component = getCode("data_transforms/salt_hashing/salt_hashing.ts");
 
 ## What is this about
 
-This page has two parts:
+This example is split into three files:
 
-1. A practical password salting+hashing example (`run_salt_hashing.ts`) with verify checks.
-2. A dedicated benchmark (`bench_salt_hashing.ts`) that compares host vs worker throughput with `mitata`.
+1. `salt_knitting.ts` runs salting + hashing checks in host and Knitting modes.
+2. `salt_hashing.ts` isolates hashing, verification, and packet fast-path functions.
+3. `bench_salt_hashing.ts` runs a quick benchmark with fixed settings (no flags).
 
-## Why this payload shape
+## Technologies used (and why)
 
-The benchmark path uses `Uint8Array` request packets instead of large JSON objects.
-That follows the [Performance](/guides/performance) guidance where typed arrays are a best-tier payload class in hot loops.
+- **Web Crypto (`PBKDF2` + `SHA-256`)**: standard password derivation path with explicit iteration cost.
+- **Knitting tasks**: lets you compare host imports and worker execution with the same function logic.
+- **`Uint8Array` packets**: benchmark path uses typed-array payloads to reduce serialization noise in hot loops.
 
 ## Install
 
 :::info
 Bun
 ```bash
-bun add -d mitata
+bun add @vixeny/knitting
 ```
 :::
 
-This example uses built-in Web Crypto (`PBKDF2` + `SHA-256`).
-`mitata` is only required for the benchmark script.
+This example uses built-in Web Crypto APIs, so no extra crypto package is required.
 
-## Example command
+## Run
 
 :::info
 Bun
 ```bash
-bun src/run_salt_hashing.ts --threads 2 --requests 4000 --iterations 120000 --mode knitting
+bun src/salt_knitting.ts
 ```
 Deno
 ```bash
-deno run -A src/run_salt_hashing.ts --threads 2 --requests 4000 --iterations 120000 --mode knitting
+deno run -A src/salt_knitting.ts
 ```
 Node
 ```bash
-npx tsx src/run_salt_hashing.ts --threads 2 --requests 4000 --iterations 120000 --mode knitting
+npx tsx src/salt_knitting.ts
 ```
 :::
 
-## Benchmark command (mitata)
+## Quick bench
 
 :::info
 Bun
 ```bash
-bun src/bench_salt_hashing.ts --threads 2 --requests 10000 --iterations 120000 --batch 64
+bun src/bench_salt_hashing.ts
 ```
 Node
 ```bash
-npx tsx src/bench_salt_hashing.ts --threads 2 --requests 10000 --iterations 120000 --batch 64
+npx tsx src/bench_salt_hashing.ts
 ```
 :::
 
@@ -78,27 +79,26 @@ npx tsx src/bench_salt_hashing.ts --threads 2 --requests 10000 --iterations 1200
 
 ## What the benchmark measures
 
-- `host`: hash `N` request packets on the main thread.
-- `knitting`: hash the same `N` packets in worker threads.
-- Requests are batched (`--batch`) to amortize dispatch overhead.
-- Worker tasks return compact summaries (`count`, `outputBytes`, `digestXor`).
+- `host`: hash typed-array packets through direct function imports.
+- `knitting`: hash the same packets using worker task calls.
+- Batch calls reduce dispatch overhead and keep comparison stable.
 
 ## Code
 
 <Tabs>
-  <TabItem label="run_salt_hashing.ts">
-    <Code code={run} lang="ts" title={"run_salt_hashing.ts"} />
+  <TabItem label="salt_knitting.ts">
+    <Code code={run} lang="ts" title={"salt_knitting.ts"} />
   </TabItem>
   <TabItem label="bench_salt_hashing.ts">
     <Code code={bench} lang="ts" title={"bench_salt_hashing.ts"} />
   </TabItem>
   <TabItem label="salt_hashing.ts">
-    <Code code={salt_hashing} lang="ts" title={"salt_hashing.ts"} />
+    <Code code={component} lang="ts" title={"salt_hashing.ts"} />
   </TabItem>
 </Tabs>
 
 ## Why this pattern matters
 
 - It keeps password storage flow explicit and deterministic.
-- It demonstrates both readability-first API and performance-first payload shape.
-- It gives a reproducible benchmark route for tuning iterations, batch size, and threads.
+- It keeps benchmark commands simple and reproducible.
+- It compares host imports and task execution with one workload shape.

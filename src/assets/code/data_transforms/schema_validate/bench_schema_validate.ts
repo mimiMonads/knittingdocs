@@ -1,24 +1,14 @@
 import { createPool, isMain } from "@vixeny/knitting";
-import { bench, boxplot, run, summary } from "mitata";
 import {
   parseAndValidateBatchFast,
   parseAndValidateBatchFastHost,
   type ValidationSummary,
 } from "./parse_validate.ts";
 
-function intArg(name: string, fallback: number): number {
-  const i = process.argv.indexOf(`--${name}`);
-  if (i !== -1 && i + 1 < process.argv.length) {
-    const value = Number(process.argv[i + 1]);
-    if (Number.isFinite(value)) return Math.floor(value);
-  }
-  return fallback;
-}
-
-const THREADS = Math.max(1, intArg("threads", 2));
-const REQUESTS = Math.max(1, intArg("requests", 50_000));
-const INVALID_PERCENT = Math.max(0, Math.min(95, intArg("invalid", 15)));
-const BATCH = Math.max(1, intArg("batch", 64));
+const THREADS = 2;
+const REQUESTS = 50_000;
+const INVALID_PERCENT = 15;
+const BATCH = 64;
 
 function makeValidPayload(i: number): string {
   const short = i.toString(36);
@@ -75,7 +65,10 @@ function makeBatches(payloads: string[], batchSize: number): string[][] {
   return batches;
 }
 
-function mergeSummary(a: ValidationSummary, b: ValidationSummary): ValidationSummary {
+function mergeSummary(
+  a: ValidationSummary,
+  b: ValidationSummary,
+): ValidationSummary {
   return {
     valid: a.valid + b.valid,
     invalid: a.invalid + b.invalid,
@@ -117,6 +110,13 @@ function sameSummary(a: ValidationSummary, b: ValidationSummary): boolean {
   return a.valid === b.valid && a.invalid === b.invalid;
 }
 
+function printMetrics(name: string, ms: number): void {
+  const secs = Math.max(1e-9, ms / 1000);
+  const rps = REQUESTS / secs;
+  console.log(`${name} took       : ${ms.toFixed(2)} ms`);
+  console.log(`${name} throughput : ${rps.toFixed(0)} req/s`);
+}
+
 async function main() {
   const payloads = new Array<string>(REQUESTS);
   for (let i = 0; i < REQUESTS; i++) {
@@ -124,51 +124,44 @@ async function main() {
   }
   const payloadBatches = makeBatches(payloads, BATCH);
 
-  const pool = createPool({ threads: THREADS -1 , 
-    inliner: {
-      position: "last",
-      batchSize: 8
-    }
-
+  const pool = createPool({
+    threads: THREADS,
   })({ parseAndValidateBatchFast });
-  let sink = 0;
 
   try {
-    const hostCheck = runHostBatches(payloadBatches);
-    const workerCheck = await runWorkerBatches(
+    const hostStart = performance.now();
+    const hostTotals = runHostBatches(payloadBatches);
+    const hostMs = performance.now() - hostStart;
+
+    const workerStart = performance.now();
+    const workerTotals = await runWorkerBatches(
       pool.call.parseAndValidateBatchFast,
       payloadBatches,
     );
-    if (!sameSummary(hostCheck, workerCheck)) {
+    const workerMs = performance.now() - workerStart;
+
+    if (!sameSummary(hostTotals, workerTotals)) {
       throw new Error("Host and worker validation counts differ.");
     }
 
-    console.log("Zod parse+validate benchmark (mitata)");
+    const uplift = (hostMs / Math.max(1e-9, workerMs) - 1) * 100;
+
+    console.log("Zod parse+validate quick bench");
     console.log("workload: JSON.parse + UserSchema.safeParse");
-    console.log("requests per iteration:", REQUESTS.toLocaleString());
+    console.log("requests:", REQUESTS.toLocaleString());
     console.log("invalid rate:", `${INVALID_PERCENT}%`);
-    console.log("batch size:", BATCH);
+    console.log("batch:", BATCH);
     console.log("threads:", THREADS);
-
-    boxplot(() => {
-      summary(() => {
-        bench(`host (${REQUESTS.toLocaleString()} req, batch ${BATCH})`, () => {
-          const totals = runHostBatches(payloadBatches);
-          sink = totals.valid;
-        });
-
-        bench(`knitting (${THREADS} thread${THREADS === 1 ? "" : "s"}, ${REQUESTS.toLocaleString()} req, batch ${BATCH})`, async () => {
-          const totals = await runWorkerBatches(
-            pool.call.parseAndValidateBatchFast,
-            payloadBatches,
-          );
-          sink = totals.valid;
-        });
-      });
-    });
-
-    await run();
-    console.log("last valid count:", sink.toLocaleString());
+    console.log("");
+    printMetrics("host", hostMs);
+    printMetrics("knitting", workerMs);
+    console.log(`uplift         : ${uplift.toFixed(1)}%`);
+    console.log(
+      "verified counts:",
+      `${hostTotals.valid}/${hostTotals.invalid} / ${
+        workerTotals.valid
+      }/${workerTotals.invalid}`,
+    );
   } finally {
     pool.shutdown();
   }

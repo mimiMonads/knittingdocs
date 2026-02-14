@@ -60,7 +60,12 @@ type ParsedRecord = {
   hash: Uint8Array;
 };
 
-function clampInt(value: unknown, fallback: number, min: number, max: number): number {
+function clampInt(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
   const integer = Math.floor(numeric);
@@ -100,12 +105,17 @@ function assertPassword(password: string): string {
   return password;
 }
 
-function normalizeSalt(saltBase64: string | undefined, saltBytes: number): Uint8Array {
+function normalizeSalt(
+  saltBase64: string | undefined,
+  saltBytes: number,
+): Uint8Array {
   if (!saltBase64) return crypto.getRandomValues(new Uint8Array(saltBytes));
   const salt = base64ToBytes(saltBase64);
   if (!salt) throw new Error("saltBase64 is not valid base64");
   if (salt.length < MIN_SALT_BYTES || salt.length > MAX_SALT_BYTES) {
-    throw new Error(`salt length must be ${MIN_SALT_BYTES}-${MAX_SALT_BYTES} bytes`);
+    throw new Error(
+      `salt length must be ${MIN_SALT_BYTES}-${MAX_SALT_BYTES} bytes`,
+    );
   }
   return salt;
 }
@@ -174,7 +184,9 @@ function parseRecord(record: string): ParsedRecord | null {
   };
 }
 
-export async function hashPasswordHost(request: HashRequest): Promise<HashResponse> {
+export async function hashPasswordHost(
+  request: HashRequest,
+): Promise<HashResponse> {
   const password = assertPassword(request.password);
   const iterations = clampInt(
     request.iterations,
@@ -182,11 +194,26 @@ export async function hashPasswordHost(request: HashRequest): Promise<HashRespon
     MIN_ITERATIONS,
     MAX_ITERATIONS,
   );
-  const keyBytes = clampInt(request.keyBytes, DEFAULT_KEY_BYTES, MIN_KEY_BYTES, MAX_KEY_BYTES);
-  const saltBytes = clampInt(DEFAULT_SALT_BYTES, DEFAULT_SALT_BYTES, MIN_SALT_BYTES, MAX_SALT_BYTES);
+  const keyBytes = clampInt(
+    request.keyBytes,
+    DEFAULT_KEY_BYTES,
+    MIN_KEY_BYTES,
+    MAX_KEY_BYTES,
+  );
+  const saltBytes = clampInt(
+    DEFAULT_SALT_BYTES,
+    DEFAULT_SALT_BYTES,
+    MIN_SALT_BYTES,
+    MAX_SALT_BYTES,
+  );
   const salt = normalizeSalt(request.saltBase64, saltBytes);
 
-  const hash = await derivePbkdf2(encoder.encode(password), salt, iterations, keyBytes);
+  const hash = await derivePbkdf2(
+    encoder.encode(password),
+    salt,
+    iterations,
+    keyBytes,
+  );
   const saltBase64 = bytesToBase64(salt);
   const hashBase64 = bytesToBase64(hash);
 
@@ -200,7 +227,9 @@ export async function hashPasswordHost(request: HashRequest): Promise<HashRespon
   };
 }
 
-export async function verifyPasswordHost(request: VerifyRequest): Promise<VerifyResponse> {
+export async function verifyPasswordHost(
+  request: VerifyRequest,
+): Promise<VerifyResponse> {
   const password = assertPassword(request.password);
   const parsed = parseRecord(request.record);
   if (!parsed) return { ok: false, reason: "record format is invalid" };
@@ -316,7 +345,9 @@ export function encodeHashPacket(
   keyBytes: number,
 ): Uint8Array {
   const headerSize = 10;
-  const out = new Uint8Array(headerSize + passwordBytes.length + saltBytes.length);
+  const out = new Uint8Array(
+    headerSize + passwordBytes.length + saltBytes.length,
+  );
   writeU16LE(out, 0, passwordBytes.length);
   writeU16LE(out, 2, saltBytes.length);
   writeU32LE(out, 4, iterations);
@@ -341,9 +372,15 @@ function decodeHashPacket(packetLike: unknown): {
   const expected = 10 + passwordLen + saltLen;
   if (expected !== packet.length) throw new Error("packet size mismatch");
   if (passwordLen < 8) throw new Error("password too short");
-  if (saltLen < MIN_SALT_BYTES || saltLen > MAX_SALT_BYTES) throw new Error("salt size invalid");
-  if (iterations < MIN_ITERATIONS || iterations > MAX_ITERATIONS) throw new Error("iterations invalid");
-  if (keyBytes < MIN_KEY_BYTES || keyBytes > MAX_KEY_BYTES) throw new Error("key size invalid");
+  if (saltLen < MIN_SALT_BYTES || saltLen > MAX_SALT_BYTES) {
+    throw new Error("salt size invalid");
+  }
+  if (iterations < MIN_ITERATIONS || iterations > MAX_ITERATIONS) {
+    throw new Error("iterations invalid");
+  }
+  if (keyBytes < MIN_KEY_BYTES || keyBytes > MAX_KEY_BYTES) {
+    throw new Error("key size invalid");
+  }
 
   const password = packet.slice(10, 10 + passwordLen);
   const salt = packet.slice(10 + passwordLen, expected);
@@ -375,7 +412,9 @@ export function decodeHashResultPacket(packet: Uint8Array): {
   const hashLen = readU16LE(packet, 2);
   const iterations = readU32LE(packet, 4);
   const expected = 8 + saltLen + hashLen;
-  if (expected !== packet.length) throw new Error("result packet size mismatch");
+  if (expected !== packet.length) {
+    throw new Error("result packet size mismatch");
+  }
 
   const salt = packet.slice(8, 8 + saltLen);
   const hash = packet.slice(8 + saltLen, expected);
@@ -386,7 +425,9 @@ export function decodeHashResultPacket(packet: Uint8Array): {
   };
 }
 
-export async function hashPasswordPacketHost(packet: Uint8Array): Promise<Uint8Array> {
+export async function hashPasswordPacketHost(
+  packet: Uint8Array,
+): Promise<Uint8Array> {
   const decoded = decodeHashPacket(packet);
   const hash = await derivePbkdf2(
     decoded.password,
@@ -416,9 +457,11 @@ export async function hashPasswordPacketBatchFastHost(
   return { count: packets.length, outputBytes, digestXor };
 }
 
-export const hashPasswordPacketBatchFast = task<Uint8Array[], HashBatchSummary>({
-  f: hashPasswordPacketBatchFastHost,
-});
+export const hashPasswordPacketBatchFast = task<Uint8Array[], HashBatchSummary>(
+  {
+    f: hashPasswordPacketBatchFastHost,
+  },
+);
 
 function fillDeterministicSalt(seed: number, bytes: number): Uint8Array {
   let x = (seed ^ 0x9e3779b9) >>> 0;
@@ -455,7 +498,12 @@ export function buildDemoHashPackets(options: DemoPacketOptions): Uint8Array[] {
     MIN_ITERATIONS,
     MAX_ITERATIONS,
   );
-  const keyBytes = clampInt(options.keyBytes, DEFAULT_KEY_BYTES, MIN_KEY_BYTES, MAX_KEY_BYTES);
+  const keyBytes = clampInt(
+    options.keyBytes,
+    DEFAULT_KEY_BYTES,
+    MIN_KEY_BYTES,
+    MAX_KEY_BYTES,
+  );
   const saltBytes = clampInt(
     options.saltBytes,
     DEFAULT_SALT_BYTES,
@@ -470,7 +518,9 @@ export function buildDemoHashPackets(options: DemoPacketOptions): Uint8Array[] {
   return packets;
 }
 
-export function hashSummaryFromOutputs(outputs: Uint8Array[]): HashBatchSummary {
+export function hashSummaryFromOutputs(
+  outputs: Uint8Array[],
+): HashBatchSummary {
   let outputBytes = 0;
   let digestXor = 0;
   for (let i = 0; i < outputs.length; i++) {

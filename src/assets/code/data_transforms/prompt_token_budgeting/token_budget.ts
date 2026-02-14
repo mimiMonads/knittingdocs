@@ -79,7 +79,11 @@ function getEncoder(model: string): Encoder {
   return enc;
 }
 
-function getStaticTokens(model: string, systemPrefix: string, enc: Encoder): number {
+function getStaticTokens(
+  model: string,
+  systemPrefix: string,
+  enc: Encoder,
+): number {
   const key = `${model}\x1f${systemPrefix}`;
   const cached = staticTokenCache.get(key);
   if (cached !== undefined) {
@@ -112,7 +116,11 @@ function truncateToTokenBudget(
   return decoder.decode(enc.decode(clipped));
 }
 
-function buildPrompt(systemPrefix: string, history: string[], query: string): string {
+function buildPrompt(
+  systemPrefix: string,
+  history: string[],
+  query: string,
+): string {
   const rows: string[] = [];
   rows.push(systemPrefix.trim());
   rows.push("");
@@ -153,7 +161,10 @@ export function preparePromptHost(input: PromptInput): PromptPlan {
   if (inputTokens > maxInputTokens) {
     const promptWithoutQuery = buildPrompt(input.systemPrefix, history, "");
     const promptWithoutQueryTokens = countTokens(enc, promptWithoutQuery);
-    const remainingBudget = Math.max(16, maxInputTokens - promptWithoutQueryTokens);
+    const remainingBudget = Math.max(
+      16,
+      maxInputTokens - promptWithoutQueryTokens,
+    );
     const clipped = truncateToTokenBudget(enc, query, remainingBudget);
     queryWasTrimmed = clipped.length < query.length;
     query = clipped;

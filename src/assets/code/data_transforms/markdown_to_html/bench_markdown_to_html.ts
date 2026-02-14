@@ -1,19 +1,9 @@
 import { createPool, isMain, task } from "@vixeny/knitting";
-import { bench, boxplot, run, summary } from "mitata";
 import { brotliCompressSync } from "node:zlib";
 import { markdownToHtmlHost } from "./render_markdown.ts";
 
-function intArg(name: string, fallback: number): number {
-  const i = process.argv.indexOf(`--${name}`);
-  if (i !== -1 && i + 1 < process.argv.length) {
-    const value = Number(process.argv[i + 1]);
-    if (Number.isFinite(value) && value > 0) return Math.floor(value);
-  }
-  return fallback;
-}
-
-const THREADS = intArg("threads", 2);
-const DOCS = intArg("docs", 2_000);
+const THREADS = 2;
+const DOCS = 2_000;
 
 const TOPICS = [
   "workers",
@@ -50,8 +40,8 @@ function makeMarkdown(i: number): string {
     "## Sample code",
     "",
     "```ts",
-    `const jobId = "${id}";`,
-    'const status = "ready";',
+    `const jobId = \"${id}\";`,
+    "const status = \"ready\";",
     "```",
     "",
     `Generated at 2026-01-${String((i % 27) + 1).padStart(2, "0")}.`,
@@ -67,23 +57,32 @@ export const markdownToHtmlHeavy = task<string, Uint8Array>({
   f: (markdown) => renderHeavy(markdown),
 });
 
-function runHost(markdowns: string[]): Uint8Array[] {
+function buildDocs(): string[] {
+  const markdowns = new Array<string>(DOCS);
+  for (let i = 0; i < DOCS; i++) markdowns[i] = makeMarkdown(i);
+  return markdowns;
+}
+
+function runHost(markdowns: string[]): { ms: number; chunks: Uint8Array[] } {
   const outputs = new Array<Uint8Array>(markdowns.length);
+  const started = performance.now();
   for (let i = 0; i < markdowns.length; i++) {
     outputs[i] = renderHeavy(markdowns[i]!);
   }
-  return outputs;
+  return { ms: performance.now() - started, chunks: outputs };
 }
 
 async function runWorkers(
   callMarkdown: (markdown: string) => Promise<Uint8Array>,
   markdowns: string[],
-): Promise<Uint8Array[]> {
+): Promise<{ ms: number; chunks: Uint8Array[] }> {
   const jobs: Promise<Uint8Array>[] = [];
+  const started = performance.now();
   for (let i = 0; i < markdowns.length; i++) {
     jobs.push(callMarkdown(markdowns[i]!));
   }
-  return Promise.all(jobs);
+  const chunks = await Promise.all(jobs);
+  return { ms: performance.now() - started, chunks };
 }
 
 function sumBytes(chunks: Uint8Array[]): number {
@@ -109,45 +108,39 @@ function sameChunks(a: Uint8Array[], b: Uint8Array[]): boolean {
   return true;
 }
 
-async function main() {
-  const markdowns = new Array<string>(DOCS);
-  for (let i = 0; i < DOCS; i++) {
-    markdowns[i] = makeMarkdown(i);
-  }
+function printMetrics(mode: string, ms: number, bytes: number): void {
+  const secs = Math.max(1e-9, ms / 1000);
+  const dps = DOCS / secs;
+  console.log(`${mode} took       : ${ms.toFixed(2)} ms`);
+  console.log(`${mode} throughput : ${dps.toFixed(0)} docs/s`);
+  console.log(`${mode} bytes      : ${bytes.toLocaleString()}`);
+}
 
-  const pool = createPool({ threads: THREADS - 1 ,
-    inliner: {
-      batchSize: 8
-    }
-   })({ markdownToHtmlHeavy });
-  let sink = 0;
+async function main() {
+  const markdowns = buildDocs();
+  const pool = createPool({ threads: THREADS })({ markdownToHtmlHeavy });
 
   try {
-    const expected = runHost(markdowns);
-    const workerCheck = await runWorkers(pool.call.markdownToHtmlHeavy, markdowns);
-    if (!sameChunks(expected, workerCheck)) {
-      throw new Error("Host and worker raw bytes differ. Aborting benchmark.");
+    const host = runHost(markdowns);
+    const knitting = await runWorkers(pool.call.markdownToHtmlHeavy, markdowns);
+
+    if (!sameChunks(host.chunks, knitting.chunks)) {
+      throw new Error("Host and worker raw bytes differ.");
     }
 
-    console.log("Markdown -> HTML heavy benchmark (mitata)");
+    const hostBytes = sumBytes(host.chunks);
+    const knittingBytes = sumBytes(knitting.chunks);
+    const uplift = (host.ms / Math.max(1e-9, knitting.ms) - 1) * 100;
+
+    console.log("Markdown -> HTML quick bench");
     console.log("workload: parse + brotli, return raw compressed bytes");
-    console.log("docs per iteration:", DOCS.toLocaleString());
+    console.log("docs:", DOCS.toLocaleString());
     console.log("threads:", THREADS);
-
-    boxplot(() => {
-      summary(() => {
-        bench(`host (${DOCS.toLocaleString()} docs)`, () => {
-          sink = sumBytes(runHost(markdowns));
-        });
-
-        bench(`knitting (${THREADS} thread${THREADS === 1 ? "" : "s"}, ${DOCS.toLocaleString()} docs)`, async () => {
-          sink = sumBytes(await runWorkers(pool.call.markdownToHtmlHeavy, markdowns));
-        });
-      });
-    });
-
-    await run();
-    console.log("last compressed bytes:", sink.toLocaleString());
+    console.log("");
+    printMetrics("host", host.ms, hostBytes);
+    printMetrics("knitting", knitting.ms, knittingBytes);
+    console.log(`uplift         : ${uplift.toFixed(1)}%`);
+    console.log(`byte parity    : ${hostBytes === knittingBytes}`);
   } finally {
     pool.shutdown();
   }

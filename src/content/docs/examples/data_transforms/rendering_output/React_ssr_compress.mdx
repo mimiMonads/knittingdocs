@@ -1,6 +1,6 @@
 ---
 title: React SSR compression
-description: A practical SSR+compression example with a clear host-vs-worker benchmark.
+description: A practical SSR+compression example with a simple host-vs-worker benchmark.
 hero:
   title: 'SSR + compression'
 sidebar:
@@ -13,15 +13,23 @@ import { Code } from '@astrojs/starlight/components';
 import { getCode } from '../../../../../lib/code-snippets';
 import DontDoubleParseTip from '../../../../../components/tips/DontDoubleParseTip.astro';
 
-export const run = getCode("data_transforms/react_ssr_compress/run_ssr_compress.ts");
-export const render_compress = getCode("data_transforms/react_ssr_compress/render_user_card_compressed.tsx");
+export const run = getCode("data_transforms/react_ssr_compress/react_ssr_compress_knitting.ts");
+export const bench = getCode("data_transforms/react_ssr_compress/bench_react_ssr_compress.ts");
+export const component = getCode("data_transforms/react_ssr_compress/render_user_card_compressed.tsx");
 
 ## What is this about
 
-This page has two parts:
+This example is split into three files:
 
-1. A practical SSR+compression example (`run_ssr_compress.ts`).
-2. A side-by-side benchmark using `--mode knitting` vs `--mode host`.
+1. `react_ssr_compress_knitting.ts` runs SSR+compression in host and Knitting modes.
+2. `render_user_card_compressed.tsx` isolates compression task logic.
+3. `bench_react_ssr_compress.ts` runs a quick benchmark with fixed settings (no flags).
+
+## Technologies used (and why)
+
+- **React SSR (`renderToString`)**: generates real HTML workload before compression.
+- **Brotli (`node:zlib`)**: models CPU-heavy response compression on the server path.
+- **Knitting tasks**: compares direct host compression and worker task compression.
 
 ## Install
 
@@ -34,70 +42,53 @@ bun add react react-dom
 
 Compression uses the built-in `node:zlib` APIs (no extra packages required).
 
-## Example command
-
-Run this first to confirm the pipeline works end-to-end.
+## Run
 
 :::info
 Bun
 ```bash
-bun src/run_ssr_compress.ts --threads 2 --requests 1000 --mode knitting
+bun src/react_ssr_compress_knitting.ts
 ```
 Deno
 ```bash
-deno run -A src/run_ssr_compress.ts --threads 2 --requests 1000 --mode knitting
+deno run -A src/react_ssr_compress_knitting.ts
 ```
 Node
 ```bash
-npx tsx src/run_ssr_compress.ts --threads 2 --requests 1000 --mode knitting
+npx tsx src/react_ssr_compress_knitting.ts
 ```
 :::
 
-## Benchmark commands
-
-Then run both modes with the same request count and compare throughput.
+## Quick bench
 
 :::info
 Bun
 ```bash
-bun src/run_ssr_compress.ts --threads 2 --requests 50000 --mode knitting
-```
-Host baseline (no workers)
-```bash
-bun src/run_ssr_compress.ts --requests 50000 --mode host
+bun src/bench_react_ssr_compress.ts
 ```
 Deno
 ```bash
-deno run -A src/run_ssr_compress.ts --threads 2 --requests 50000 --mode knitting
-```
-Host baseline (no workers)
-```bash
-deno run -A src/run_ssr_compress.ts --requests 50000 --mode host
+deno run -A src/bench_react_ssr_compress.ts
 ```
 Node
 ```bash
-npx tsx src/run_ssr_compress.ts --threads 2 --requests 50000 --mode knitting
-```
-Host baseline (no workers)
-```bash
-npx tsx src/run_ssr_compress.ts --requests 50000 --mode host
+npx tsx src/bench_react_ssr_compress.ts
 ```
 :::
 
 ## What happens in this example
 
 1. The host generates JSON payload strings.
-2. In `--mode knitting`, payloads go to `renderUserCardCompressed` in workers.
-3. Each worker parses JSON, renders SSR HTML, and compresses with Brotli.
-4. In `--mode host`, the same work stays on the host.
-5. The runner prints compressed bytes and throughput for both modes.
+2. The host path renders HTML then compresses with Brotli.
+3. The worker path runs the same compression logic via `renderUserCardCompressed`.
+4. Both paths report compressed output bytes.
+5. The benchmark prints throughput and uplift.
 
 ## What the benchmark measures
 
-- `host`: parse + SSR + Brotli compress `N` requests on the main thread.
-- `knitting`: run the same `N` requests through the pool and return compressed buffers.
-- Worker mode includes serialization/deserialization of compressed output.
-- `inliner.dispatchThreshold` keeps the host lane out at low load and joins on bursts.
+- `host`: parse + SSR + Brotli compress via direct imports.
+- `knitting`: the same payload set through compression task calls.
+- Byte parity is reported to verify output consistency.
 
 <DontDoubleParseTip />
 
@@ -105,16 +96,19 @@ npx tsx src/run_ssr_compress.ts --requests 50000 --mode host
 ## Code
 
 <Tabs>
-  <TabItem label="run_ssr_compress.ts">
-    <Code code={run} lang="ts" title={"run_ssr_compress.ts"} />
+  <TabItem label="react_ssr_compress_knitting.ts">
+    <Code code={run} lang="ts" title={"react_ssr_compress_knitting.ts"} />
+  </TabItem>
+  <TabItem label="bench_react_ssr_compress.ts">
+    <Code code={bench} lang="ts" title={"bench_react_ssr_compress.ts"} />
   </TabItem>
   <TabItem label="render_user_card_compressed.tsx">
-    <Code code={render_compress} lang="tsx" title={"render_user_card_compressed.tsx"} />
+    <Code code={component} lang="tsx" title={"render_user_card_compressed.tsx"} />
   </TabItem>
 </Tabs>
 
 ## Why this pattern matters
 
-- It shows where compression fits in a realistic SSR pipeline.
-- It makes transfer cost visible by returning compressed buffers.
-- It gives a practical baseline before tuning inliner and thread counts.
+- It isolates compression logic from runner orchestration.
+- It keeps benchmark commands simple and reproducible.
+- It compares host imports and task execution with one workload shape.

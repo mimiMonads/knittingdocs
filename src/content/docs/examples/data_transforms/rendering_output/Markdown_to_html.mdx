@@ -1,6 +1,6 @@
 ---
 title: Markdown to HTML
-description: Clean markdown-to-HTML example plus a separate mitata benchmark.
+description: Markdown-to-HTML rendering with a simple host-vs-worker benchmark.
 hero:
   title: 'Markdown rendering'
 sidebar:
@@ -11,18 +11,25 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 import { Code } from '@astrojs/starlight/components';
 import { getCode } from '../../../../../lib/code-snippets';
 
-export const run = getCode("data_transforms/markdown_to_html/run_markdown_to_html.ts");
+export const run = getCode("data_transforms/markdown_to_html/markdown_knitting.ts");
 export const bench = getCode("data_transforms/markdown_to_html/bench_markdown_to_html.ts");
-export const render_markdown = getCode("data_transforms/markdown_to_html/render_markdown.ts");
+export const component = getCode("data_transforms/markdown_to_html/render_markdown.ts");
 
 ## What is this about
 
-This page has two parts:
+This example is split into three files:
 
-1. A clean example (`run_markdown_to_html.ts`) that focuses on usage and correctness.
-2. A dedicated heavy benchmark (`bench_markdown_to_html.ts`) that uses `mitata` to compare host and worker throughput.
+1. `markdown_knitting.ts` runs markdown rendering in host and Knitting modes.
+2. `render_markdown.ts` isolates the parser/render task.
+3. `bench_markdown_to_html.ts` runs a quick benchmark with fixed settings (no flags).
 
 It complements React SSR as another **Rendering & Output** example.
+
+## Technologies used (and why)
+
+- **`marked`**: practical markdown parser for realistic transform workloads.
+- **Knitting tasks**: compares direct host calls and worker task execution for the same renderer.
+- **Brotli (`node:zlib`)**: benchmark path includes compression so byte movement cost is visible.
 
 ## Install
 
@@ -30,40 +37,37 @@ It complements React SSR as another **Rendering & Output** example.
 Bun
 ```bash
 bun add marked
-bun add -d mitata
 ```
 :::
 
-`mitata` is only required for the benchmark script.
-
-## Example command
+## Run
 
 :::info
 Bun
 ```bash
-bun src/run_markdown_to_html.ts --threads 2
+bun src/markdown_knitting.ts
 ```
 Deno
 ```bash
-deno run -A src/run_markdown_to_html.ts --threads 2
+deno run -A src/markdown_knitting.ts
 ```
 
 Node
 ```bash
-npx tsx src/run_markdown_to_html.ts --threads 2
+npx tsx src/markdown_knitting.ts
 ```
 :::
 
-## Benchmark command (mitata)
+## Quick bench
 
 :::info
 Bun
 ```bash
-bun src/bench_markdown_to_html.ts --threads 2 --docs 2000
+bun src/bench_markdown_to_html.ts
 ```
 Node
 ```bash
-npx tsx src/bench_markdown_to_html.ts --threads 2 --docs 2000
+npx tsx src/bench_markdown_to_html.ts
 ```
 :::
 
@@ -75,34 +79,31 @@ npx tsx src/bench_markdown_to_html.ts --threads 2 --docs 2000
 
 ## What the benchmark measures
 
-- `host`: parse `N` markdown docs on the main thread.
-- `knitting`: run `N` docs through a worker pool.
-- Each document runs: parse markdown -> Brotli compress -> return raw compressed bytes.
-- The benchmark validates host-vs-worker raw bytes before timing starts.
+- `host`: parse + compress `N` markdown docs via direct imports.
+- `knitting`: run the same `N` docs through worker tasks.
+- Benchmark validates host-vs-worker raw bytes before reporting throughput.
 
 :::note
-In this benchmark the limiting factor is often **moving bytes**, not CPU threads.
-Both modes must allocate and touch the compressed output, and the worker mode also
-has to transfer those bytes back to the host. Once byte movement dominates,
-adding more threads stops helping (and can increase memory pressure).
+This benchmark includes both execution paths in one script, so the main variable
+is host import vs worker task path.
 :::
 
 ## Code
 
 <Tabs>
-  <TabItem label="run_markdown_to_html.ts">
-    <Code code={run} lang="ts" title={"run_markdown_to_html.ts"} />
+  <TabItem label="markdown_knitting.ts">
+    <Code code={run} lang="ts" title={"markdown_knitting.ts"} />
   </TabItem>
   <TabItem label="bench_markdown_to_html.ts">
     <Code code={bench} lang="ts" title={"bench_markdown_to_html.ts"} />
   </TabItem>
   <TabItem label="render_markdown.ts">
-    <Code code={render_markdown} lang="ts" title={"render_markdown.ts"} />
+    <Code code={component} lang="ts" title={"render_markdown.ts"} />
   </TabItem>
 </Tabs>
 
 ## Why this pattern matters
 
-- The example stays easy to read and copy.
-- Performance discussion moves to a heavier benchmark that prints real numbers.
-- The benchmark path better reflects workloads where worker offload can pay off.
+- It isolates rendering logic from orchestration and benchmarking.
+- It keeps benchmark commands simple and reproducible.
+- It compares host imports and task execution with one workload shape.

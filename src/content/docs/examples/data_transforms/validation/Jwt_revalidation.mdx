@@ -1,6 +1,6 @@
 ---
 title: JWT revalidation
-description: Validate JWTs, renew when policy allows, and benchmark host vs worker throughput.
+description: Validate JWTs, renew when policy allows, and run a simple host-vs-worker benchmark.
 hero:
   title: 'JWT validation + renewal'
 sidebar:
@@ -11,96 +11,100 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 import { Code } from '@astrojs/starlight/components';
 import { getCode } from '../../../../../lib/code-snippets';
 
-export const run = getCode("data_transforms/jwt_revalidation/run_jwt_revalidation.ts");
+export const run = getCode("data_transforms/jwt_revalidation/jwt_knitting.ts");
 export const bench = getCode("data_transforms/jwt_revalidation/bench_jwt_revalidation.ts");
-export const jwt_revalidation = getCode("data_transforms/jwt_revalidation/jwt_revalidation.ts");
+export const component = getCode("data_transforms/jwt_revalidation/jwt_revalidation.ts");
 
 ## What is this about
 
-This page has two parts:
+This example is split into three files:
 
-1. A practical JWT example (`run_jwt_revalidation.ts`) that verifies tokens and renews them when policy allows.
-2. A dedicated benchmark (`bench_jwt_revalidation.ts`) that measures host vs worker throughput with `mitata`.
+1. `jwt_knitting.ts` runs JWT revalidation in host and Knitting modes.
+2. `jwt_revalidation.ts` isolates token validation + renewal logic and exports tasks.
+3. `bench_jwt_revalidation.ts` runs a quick benchmark with fixed settings (no flags).
+
+## Technologies used (and why)
+
+- **Web Crypto (`HMAC SHA-256`)**: performs JWT signature verification/issuance without extra JWT dependencies.
+- **Knitting tasks**: lets you benchmark the same logic via direct host import vs worker task call.
+- **JSON string payloads**: keeps transfer overhead visible so benchmark results reflect real route behavior.
 
 ## Install
 
 :::info
 Bun
 ```bash
-bun add -d mitata
+bun add @vixeny/knitting
 ```
 :::
 
-This example uses built-in Web Crypto APIs (`HMAC SHA-256`) and does not need a separate JWT package.
-`mitata` is only required for the benchmark script.
+This example uses built-in Web Crypto APIs and does not require a JWT package.
 
-## Example command
+## Run
 
 :::info
 Bun
 ```bash
-bun src/run_jwt_revalidation.ts --threads 2 --requests 25000 --invalid 10 --mode knitting
+bun src/jwt_knitting.ts
 ```
 Deno
 ```bash
-deno run -A src/run_jwt_revalidation.ts --threads 2 --requests 25000 --invalid 10 --mode knitting
+deno run -A src/jwt_knitting.ts
 ```
 Node
 ```bash
-npx tsx src/run_jwt_revalidation.ts --threads 2 --requests 25000 --invalid 10 --mode knitting
+npx tsx src/jwt_knitting.ts
 ```
 :::
 
-## Benchmark command (mitata)
+## Quick bench
 
 :::info
 Bun
 ```bash
-bun src/bench_jwt_revalidation.ts --threads 2 --requests 50000 --invalid 10 --batch 64
+bun src/bench_jwt_revalidation.ts
 ```
 Node
 ```bash
-npx tsx src/bench_jwt_revalidation.ts --threads 2 --requests 50000 --invalid 10 --batch 64
+npx tsx src/bench_jwt_revalidation.ts
 ```
 :::
 
 ## What happens in this example
 
-1. The host builds request payloads containing JWT strings.
-2. Each task validates token format, header, claims, and HMAC signature.
-3. It checks renewal policy (`renewWindowSec` + `renewUntil` hard cutoff).
-4. If renewable, it creates a new JWT; otherwise it keeps or rejects the token.
-5. The task stringifies the response and sends it back.
+1. The host builds repeatable payloads with valid and invalid JWTs.
+2. `revalidateTokenHost` runs directly on the main thread.
+3. `revalidateToken` runs through Knitting workers with the same logic.
+4. Renewal policy is checked with `renewWindowSec` and `renewUntil`.
+5. The benchmark prints host throughput, worker throughput, and uplift.
 
 ## What the benchmark measures
 
-- `host`: verify + optional renewal + `JSON.stringify` on `N` requests.
-- `knitting`: the same `N` requests through worker threads.
-- Requests are sent in batches (`--batch`) to amortize per-call dispatch overhead.
-- Each batch returns compact counters and output byte totals.
+- `host`: verify + optional renewal + `JSON.stringify` via direct function import.
+- `knitting`: the same workload via task calls in a worker pool.
+- Batch calls are used to reduce per-dispatch overhead and keep comparison stable.
 
 :::note
-JWT workloads often mix CPU and transport cost. Signature checks are CPU work,
-while returning many JSON strings adds transfer overhead. Batch size can change
-which side dominates.
+You can benchmark using either direct imports (host path) or task calls (worker path).
+This script includes both so the difference is only execution path.
 :::
 
 ## Code
 
 <Tabs>
-  <TabItem label="run_jwt_revalidation.ts">
-    <Code code={run} lang="ts" title={"run_jwt_revalidation.ts"} />
+  <TabItem label="jwt_knitting.ts">
+    <Code code={run} lang="ts" title={"jwt_knitting.ts"} />
   </TabItem>
   <TabItem label="bench_jwt_revalidation.ts">
     <Code code={bench} lang="ts" title={"bench_jwt_revalidation.ts"} />
   </TabItem>
   <TabItem label="jwt_revalidation.ts">
-    <Code code={jwt_revalidation} lang="ts" title={"jwt_revalidation.ts"} />
+    <Code code={component} lang="ts" title={"jwt_revalidation.ts"} />
   </TabItem>
 </Tabs>
 
 ## Why this pattern matters
 
-- It keeps token validation and renewal logic deterministic.
-- It shows when token rotation can run on workers vs main thread.
-- It keeps a benchmark path that includes real response serialization work.
+- It isolates core JWT logic in one component file.
+- It keeps the benchmark simple and reproducible with fixed settings.
+- It compares host imports and worker tasks using the same workload shape.
