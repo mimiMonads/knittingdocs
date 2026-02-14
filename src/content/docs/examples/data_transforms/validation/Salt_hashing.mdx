@@ -1,0 +1,104 @@
+---
+title: Salt hashing
+description: Password salting + PBKDF2 hashing example with a typed-array benchmark path.
+hero:
+  title: 'Salting + hashing'
+sidebar:
+  order: 3
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Code } from '@astrojs/starlight/components';
+import { getCode } from '../../../../../lib/code-snippets';
+
+export const run = getCode("data_transforms/salt_hashing/run_salt_hashing.ts");
+export const bench = getCode("data_transforms/salt_hashing/bench_salt_hashing.ts");
+export const salt_hashing = getCode("data_transforms/salt_hashing/salt_hashing.ts");
+
+## What is this about
+
+This page has two parts:
+
+1. A practical password salting+hashing example (`run_salt_hashing.ts`) with verify checks.
+2. A dedicated benchmark (`bench_salt_hashing.ts`) that compares host vs worker throughput with `mitata`.
+
+## Why this payload shape
+
+The benchmark path uses `Uint8Array` request packets instead of large JSON objects.
+That follows the [Performance](/guides/performance) guidance where typed arrays are a best-tier payload class in hot loops.
+
+## Install
+
+:::info
+Bun
+```bash
+bun add -d mitata
+```
+:::
+
+This example uses built-in Web Crypto (`PBKDF2` + `SHA-256`).
+`mitata` is only required for the benchmark script.
+
+## Example command
+
+:::info
+Bun
+```bash
+bun src/run_salt_hashing.ts --threads 2 --requests 4000 --iterations 120000 --mode knitting
+```
+Deno
+```bash
+deno run -A src/run_salt_hashing.ts --threads 2 --requests 4000 --iterations 120000 --mode knitting
+```
+Node
+```bash
+npx tsx src/run_salt_hashing.ts --threads 2 --requests 4000 --iterations 120000 --mode knitting
+```
+:::
+
+## Benchmark command (mitata)
+
+:::info
+Bun
+```bash
+bun src/bench_salt_hashing.ts --threads 2 --requests 10000 --iterations 120000 --batch 64
+```
+Node
+```bash
+npx tsx src/bench_salt_hashing.ts --threads 2 --requests 10000 --iterations 120000 --batch 64
+```
+:::
+
+## What happens in this example
+
+1. Generate or receive per-password salt bytes.
+2. Derive a hash using `PBKDF2-SHA256`.
+3. Persist a compact record format (`algorithm$iterations$keyBytes$salt$hash`).
+4. Verify login attempts by recomputing and constant-time comparing hashes.
+
+## What the benchmark measures
+
+- `host`: hash `N` request packets on the main thread.
+- `knitting`: hash the same `N` packets in worker threads.
+- Requests are batched (`--batch`) to amortize dispatch overhead.
+- Worker tasks return compact summaries (`count`, `outputBytes`, `digestXor`).
+
+## Code
+
+<Tabs>
+  <TabItem label="run_salt_hashing.ts">
+    <Code code={run} lang="ts" title={"run_salt_hashing.ts"} />
+  </TabItem>
+  <TabItem label="bench_salt_hashing.ts">
+    <Code code={bench} lang="ts" title={"bench_salt_hashing.ts"} />
+  </TabItem>
+  <TabItem label="salt_hashing.ts">
+    <Code code={salt_hashing} lang="ts" title={"salt_hashing.ts"} />
+  </TabItem>
+</Tabs>
+
+## Why this pattern matters
+
+- It keeps password storage flow explicit and deterministic.
+- It demonstrates both readability-first API and performance-first payload shape.
+- It gives a reproducible benchmark route for tuning iterations, batch size, and threads.

@@ -28,6 +28,8 @@ entrypoints that create pools.
 ```ts
 createPool({
   threads?: number,
+  payloadInitialBytes?: number,
+  payloadMaxBytes?: number,
   inliner?: {
     position?: "first" | "last",
     batchSize?: number,
@@ -55,6 +57,28 @@ createPool({
   },
 })
 ```
+
+### payloadInitialBytes
+
+Initial size (in bytes) of each payload `SharedArrayBuffer` used by a worker.
+Lower values reduce startup memory; the buffer can grow later (when growable
+SAB is supported).
+
+### payloadMaxBytes
+
+Maximum size (in bytes) each payload `SharedArrayBuffer` is allowed to grow to.
+
+### Payload buffer behavior
+
+- Defaults:
+  - `payloadMaxBytes = 64 * 1024 * 1024` (`64 MiB`)
+  - `payloadInitialBytes = 4 * 1024 * 1024` (`4 MiB`) when SAB growth is available
+  - If SAB growth is not available, initial size is forced to max size.
+- Validation:
+  - Non-finite or `<= 0` values are ignored (defaults used).
+  - `payloadInitialBytes` is clamped to `payloadMaxBytes`.
+- Scope:
+  - Applied per worker and per direction (request payload + return payload), so each worker allocates two payload buffers with these limits.
 
 ## Example
 

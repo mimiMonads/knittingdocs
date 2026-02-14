@@ -128,7 +128,6 @@ async function runWorkers(inputs: PromptInput[]): Promise<Totals> {
       jobs.push(pool.call.preparePrompt(inputs[i]!));
     }
 
-    pool.send();
     const plans = await Promise.all(jobs);
     return summarize(plans);
   } finally {
