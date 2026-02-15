@@ -6,31 +6,7 @@ import { buildUserPayloads } from "./utils.ts";
 const THREADS = 1;
 const REQUESTS = 2_000;
 
-function runHost(payloads: string[]): number {
-  let htmlBytes = 0;
-  for (let i = 0; i < payloads.length; i++) {
-    const html = renderUserCardHost(payloads[i]!);
-    htmlBytes += html.length;
-  }
-  return htmlBytes;
-}
 
-async function runWorkers(
-  callRender: (payload: string) => Promise<string>,
-  payloads: string[],
-): Promise<number> {
-  const jobs: Promise<string>[] = [];
-  for (let i = 0; i < payloads.length; i++) {
-    jobs.push(callRender(payloads[i]!));
-  }
-
-  const results = await Promise.all(jobs);
-  let htmlBytes = 0;
-  for (let i = 0; i < results.length; i++) {
-    htmlBytes += results[i]!.length;
-  }
-  return htmlBytes;
-}
 
 async function main() {
   const payloads = buildUserPayloads(REQUESTS);
@@ -74,6 +50,32 @@ async function main() {
   } finally {
     pool.shutdown();
   }
+}
+
+function runHost(payloads: string[]): number {
+  let htmlBytes = 0;
+  for (let i = 0; i < payloads.length; i++) {
+    const html = renderUserCardHost(payloads[i]!);
+    htmlBytes += html.length;
+  }
+  return htmlBytes;
+}
+
+async function runWorkers(
+  callRender: (payload: string) => Promise<string>,
+  payloads: string[],
+): Promise<number> {
+  const jobs: Promise<string>[] = [];
+  for (let i = 0; i < payloads.length; i++) {
+    jobs.push(callRender(payloads[i]!));
+  }
+
+  const results = await Promise.all(jobs);
+  let htmlBytes = 0;
+  for (let i = 0; i < results.length; i++) {
+    htmlBytes += results[i]!.length;
+  }
+  return htmlBytes;
 }
 
 if (isMain) {

@@ -17,16 +17,17 @@ import RuntimeRunTabs from '../../../../../components/RuntimeRunTabs.astro';
 
 export const bench = getCode("data_transforms/react_ssr/bench_react_ssr.ts");
 export const component = getCode("data_transforms/react_ssr/render_user_card.tsx");
+export const utils = getCode("data_transforms/react_ssr/utils.ts");
 
 ## What is this about
 
 This example is split into three files:
 
-1. `react_ssr_knitting.ts` runs parse + SSR in host and Knitting modes.
-2. `render_user_card.tsx` isolates the SSR component and task.
-3. `bench_react_ssr.ts` runs a quick `mitata` benchmark with fixed settings (no flags).
+1. `bench_react_ssr.ts` runs the host-vs-worker benchmark with `mitata`.
+2. `render_user_card.tsx` defines the SSR component and worker task.
+3. `utils.ts` builds input payloads and normalization helpers.
 
-## Technologies used (and why)
+## Packages
 
 - **React SSR (`renderToString`)**: models a realistic server render workload.
 - **Knitting tasks**: compares direct host function calls and worker task calls with the same renderer.
@@ -43,8 +44,7 @@ This example is split into three files:
 />
 :::
 
-This page uses Bun for simplicity, but the same setup also works in Node and
-Deno.
+This page uses Bun for simplicity, and the same setup also works in Deno.
 
 ## Deno setup (TSX + npm)
 
@@ -76,16 +76,16 @@ This repo already includes that config, so `deno run -A ...` works without extra
 <RuntimeRunTabs
   bunCommand="bun src/bench_react_ssr.ts"
   denoCommand="deno run -A src/bench_react_ssr.ts"
-  nodeCommand="npx tsx src/bench_react_ssr.ts"
 />
 :::
+
 
 ## What happens in the example
 
 1. The host generates JSON payload strings.
-2. `renderUserCardHost` executes directly on the host and returns an HTML string.
-3. `renderUserCard` executes the same logic through worker tasks.
-4. Runners compute byte counts from `html.length`, and parity is validated before benchmarking.
+2. The host path calls `renderUserCardHost` (parse + normalize + `renderToString`).
+3. The worker path calls `renderUserCard` through `createPool`.
+4. Byte totals are compared once to verify host/worker output parity.
 5. `mitata` reports timing and relative speed for host and worker runs.
 
 ## What the benchmark measures
@@ -104,6 +104,9 @@ This repo already includes that config, so `deno run -A ...` works without extra
   </TabItem>
   <TabItem label="render_user_card.tsx">
     <Code code={component} lang="tsx" title={"render_user_card.tsx"} />
+  </TabItem>
+  <TabItem label="utils.ts">
+    <Code code={utils} lang="ts" title={"utils.ts"} />
   </TabItem>
 </Tabs>
 
