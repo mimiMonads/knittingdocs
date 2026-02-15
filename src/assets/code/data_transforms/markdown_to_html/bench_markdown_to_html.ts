@@ -41,7 +41,7 @@ function makeMarkdown(i: number): string {
     "",
     "```ts",
     `const jobId = \"${id}\";`,
-    "const status = \"ready\";",
+    'const status = "ready";',
     "```",
     "",
     `Generated at 2026-01-${String((i % 27) + 1).padStart(2, "0")}.`,

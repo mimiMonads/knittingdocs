@@ -86,8 +86,8 @@ async function main() {
 
   if (MODE === "host") {
     for (let i = 0; i < payloads.length; i++) {
-      const res = renderUserCardHost(payloads[i]!);
-      compressedBytes += compressHtml(res.html).byteLength;
+      const html = renderUserCardHost(payloads[i]!);
+      compressedBytes += compressHtml(html).byteLength;
     }
   } else {
     const pool = createPool({

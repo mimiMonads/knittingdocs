@@ -10,6 +10,8 @@ sidebar:
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 import { Code } from '@astrojs/starlight/components';
 import { getCode } from '../../../../../lib/code-snippets';
+import LibraryInstallTabs from '../../../../../components/LibraryInstallTabs.astro';
+import RuntimeRunTabs from '../../../../../components/RuntimeRunTabs.astro';
 
 export const run = getCode("data_transforms/markdown_to_html/markdown_knitting.ts");
 export const bench = getCode("data_transforms/markdown_to_html/bench_markdown_to_html.ts");
@@ -34,41 +36,30 @@ It complements React SSR as another **Rendering & Output** example.
 ## Install
 
 :::info
-Bun
-```bash
-bun add marked
-```
+<LibraryInstallTabs
+  jsrPackages={["@vixeny/knitting"]}
+  npmPackages={["marked"]}
+  denoUseNpmInterop={true}
+/>
 :::
 
 ## Run
 
 :::info
-Bun
-```bash
-bun src/markdown_knitting.ts
-```
-Deno
-```bash
-deno run -A src/markdown_knitting.ts
-```
-
-Node
-```bash
-npx tsx src/markdown_knitting.ts
-```
+<RuntimeRunTabs
+  bunCommand="bun src/markdown_knitting.ts"
+  denoCommand="deno run -A src/markdown_knitting.ts"
+  nodeCommand="npx tsx src/markdown_knitting.ts"
+/>
 :::
 
 ## Quick bench
 
 :::info
-Bun
-```bash
-bun src/bench_markdown_to_html.ts
-```
-Node
-```bash
-npx tsx src/bench_markdown_to_html.ts
-```
+<RuntimeRunTabs
+  bunCommand="bun src/bench_markdown_to_html.ts"
+  nodeCommand="npx tsx src/bench_markdown_to_html.ts"
+/>
 :::
 
 ## What happens in the example

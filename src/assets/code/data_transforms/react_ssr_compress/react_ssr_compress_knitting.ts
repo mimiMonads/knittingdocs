@@ -72,8 +72,8 @@ function runHost(payloads: string[]): { ms: number; bytes: number } {
   let compressedBytes = 0;
   const started = performance.now();
   for (let i = 0; i < payloads.length; i++) {
-    const result = renderUserCardHost(payloads[i]!);
-    compressedBytes += brotliCompressSync(result.html).byteLength;
+    const html = renderUserCardHost(payloads[i]!);
+    compressedBytes += brotliCompressSync(html).byteLength;
   }
   return { ms: performance.now() - started, bytes: compressedBytes };
 }
