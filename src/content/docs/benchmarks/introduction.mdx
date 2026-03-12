@@ -34,6 +34,7 @@ Interpretation rule: "`x` faster" here means faster for this benchmark setup (pa
 <TokioCloseUp />
 
 For primitive calls and low binary payloads, Knitting stays in the same microsecond tier as Tokio in these benchmark shapes.
+Read that as handoff cost: wakeups/signaling plus copying or cloning very small payloads, not a claim that every payload shape matches Tokio.
 That matters because it shows the shared-memory fast path is not just "good for JavaScript" — it can stay competitive with a Rust baseline when coordination dominates.
 
 ## IPC (combined)

@@ -285,6 +285,7 @@ app.post("/upload", async (c) => {
       (body) =>
         new Envelope(
           { contentType: c.req.header("content-type") ?? "application/octet-stream" },
+          // or:  c.req.header("content-type") ?? "application/octet-stream" 
           body,
         ),
     ),
