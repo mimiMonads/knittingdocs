@@ -298,15 +298,16 @@ import TokioCloseUp from "../../components/TokioCloseUp.astro";
 
     <div class="home-card-slot home-card-slot--throughput">
       <Card title="Throughput">
-        This is transport capacity, not full app throughput. We measured a `1 MB` echo roundtrip (host -> worker -> host), which is `2 MB` transferred per call.
+        This is batched transport capacity, not full app throughput. We measured a `1 MB` echo
+        roundtrip (`batch=64`, host -> worker -> host), which is `2 MB` transferred per call.
 
         **Here's what we saw (GB/s, one-way equivalent):**
 
         | Runtime | `Uint8Array` | `string` |
         | --- | ---: | ---: |
-        | **Bun** | **11.93** | **9.74** |
-        | **Deno** | **1.17** | **2.68** |
-        | **Node** | **1.15** | **1.32** |
+        | **Bun** | **16.21** | **11.86** |
+        | **Deno** | **5.78** | **3.37** |
+        | **Node** | **7.50** | **1.44** |
 
         We report one-way equivalent (half the roundtrip) to keep units comparable.
         Treat these as communication-layer upper bounds: they do **not** mean your app will be `3.5x` faster.
