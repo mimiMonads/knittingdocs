@@ -168,7 +168,7 @@ import TokioCloseUp from "../../components/TokioCloseUp.astro";
             ```ts
             import { createPool, isMain, task } from "@vixeny/knitting";
 
-            const hello = task({
+            export const hello = task({
               f: (name: string) => `hello ${name}`,
             });
 
@@ -188,7 +188,7 @@ import TokioCloseUp from "../../components/TokioCloseUp.astro";
             ```ts
             import { createPool, isMain, task } from "@vixeny/knitting";
 
-            const slowUpper = task({
+            export const slowUpper = task({
               abortSignal: { hasAborted: true },
               f: async (value: string, signal) => {
                 if (signal.hasAborted()) return "aborted";
@@ -197,7 +197,7 @@ import TokioCloseUp from "../../components/TokioCloseUp.astro";
               },
             });
 
-            const pool = createPool({})({ slowUpper });
+            export const pool = createPool({})({ slowUpper });
 
             if (isMain) {
               const pending = pool.call.slowUpper("hello");
@@ -214,7 +214,7 @@ import TokioCloseUp from "../../components/TokioCloseUp.astro";
             ```ts
             import { isMain, task } from "@vixeny/knitting";
 
-            const timed = task<string, string>({
+            export const timed = task<string, string>({
               timeout: { time: 50, default: "timeout" },
               f: async (value) => {
                 await new Promise((r) => setTimeout(r, 100));
@@ -232,7 +232,7 @@ import TokioCloseUp from "../../components/TokioCloseUp.astro";
             ```ts
             import { createPool, isMain, task } from "@vixeny/knitting";
 
-            const score = task({
+            export const score = task({
               f: (chunk: Uint8Array) => chunk.length,
             });
 
@@ -257,7 +257,7 @@ import TokioCloseUp from "../../components/TokioCloseUp.astro";
             ```ts
             import { createPool, importTask, isMain } from "@vixeny/knitting";
 
-            const addFromWeb = importTask<[number, number], number>({
+            export const addFromWeb = importTask<[number, number], number>({
               href: "https://knittingdocs.netlify.app/example-task.mjs",
               name: "add",
             });
