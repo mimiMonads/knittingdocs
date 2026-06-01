@@ -74,23 +74,22 @@ export const signals = `import { createPool, isMain, task } from "knitting";
 export const countUntilStopped = task({
   abortSignal: { hasAborted: true },
   f: (limit: number, signal) => {
-    let count = 0
+    let count = 0;
     while (!signal.hasAborted() && limit > ++count) {}
     return count;
-    },
+  },
 });
 
 if (isMain) {
-  using pool = createPool({ abortSignalCapacity: 8 
-    })({ countUntilStopped });
+  using pool = createPool({})({ countUntilStopped });
   const pending = pool.call.countUntilStopped(1_000_000_000);
   setTimeout(() => pending.reject(), 0 /*100*/);
   console.log(await pending);
-  }`;
+}`;
 
 export const processWorker = `import { createPool, isMain } from "knitting";
 
-export const isDeno = () =>  typeof Deno ;
+export const isDeno = () => typeof Deno;
 
 if (isMain) {
   using pool = createPool({
@@ -105,22 +104,42 @@ if (isMain) {
 }
 `;
 
-export const inliner = `import { createPool, isMain } from "knitting";
+export const bwrap = `import { createPool, isMain, importTask } from "knitting";
 
-export const add = ([a, b]: [number, number]) => a + b;
+// The task lives in another module, so only the worker ever runs it.
+export const add = importTask<[number, number], number>({
+  href: "./worker-tasks.ts",
+  name: "add",
+});
 
 if (isMain) {
   using pool = createPool({
-    threads: 2,
-    inliner: { position: "last", batchSize: 4 },
+    worker: {
+      runtime: "process",
+      processRuntime: "bun",
+      // Wrap the worker in bubblewrap. Its handle arrives on stdin,
+      // so the prefix must leave fd 0 alone.
+      processCommandPrefix: [
+        "bwrap",
+        "--unshare-all",        // new namespaces, no network
+        "--ro-bind", "/", "/",  // read-only filesystem
+        "--dev-bind", "/dev", "/dev",
+        "--proc", "/proc",
+        "--tmpfs", "/tmp",      // writable scratch
+        "--die-with-parent",
+      ],
+    },
   })({ add });
 
-  const results = await Promise.all(
-    Array.from({ length: 8 }, () => pool.call.add([1, 2])),
-  );
-
-  console.log(results);
+  console.log(await pool.call.add([1, 2])); // 3
 }`;
+
+export const workerTasks = `// worker-tasks.ts — imported into the sandboxed worker, never the host.
+export const add = ([a, b]: [number, number]) => a + b;
+
+// The sandbox blocks network and makes the filesystem read-only, but a
+// read-only bind is still readable: it is isolation, not a full sandbox.
+`;
 
 export const install = `npm install knitting
 deno add --npm knitting`;
@@ -167,7 +186,7 @@ deno add --npm knitting`;
         <span></span>
         <span></span>
       </span>
-      <span class="kh-code-path">src/parallel/examples.ts</span>
+      <span class="kh-code-path">knitting/examples.ts</span>
       <span class="kh-code-runtime">Node / Deno / Bun</span>
     </div>
     <Tabs>
@@ -183,8 +202,11 @@ deno add --npm knitting`;
       <TabItem label="process.ts">
         <Code code={processWorker} lang="ts" title={"process.ts"} />
       </TabItem>
-      <TabItem label="inliner.ts">
-        <Code code={inliner} lang="ts" title={"inliner.ts"} />
+      <TabItem label="bwrap.ts">
+        <Code code={bwrap} lang="ts" title={"bwrap.ts"} />
+      </TabItem>
+      <TabItem label="worker-tasks.ts">
+        <Code code={workerTasks} lang="ts" title={"worker-tasks.ts"} />
       </TabItem>
     </Tabs>
   </div>
