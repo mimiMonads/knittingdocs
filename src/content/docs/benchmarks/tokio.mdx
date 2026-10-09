@@ -16,7 +16,9 @@ import uint8ArrayArcCompareSizeSweep from '../../../assets/tokio/uint8array_arc_
 
 This page compares Tokio and Knitting on Bun, Node.js, and Deno using the same batch-oriented echo benchmark.
 
-The short version: JavaScript runtimes are quicker for some tiny values, while Tokio becomes much more competitive as the payload gets larger. The charts below show where that change happens.
+The result changes with payload size: Tokio leads for 1–16 KiB and 1 MiB
+binary payloads, while Knitting on Bun and Node.js is slightly ahead at
+32–512 KiB. The charts below show the full range.
 
 Benchmark source: [`mimiMonads/knitting-vs-tokio-bench`](https://github.com/mimiMonads/knitting-vs-tokio-bench).
 
@@ -30,9 +32,16 @@ Each test sends a value to a worker, echoes it back, and measures the full batch
 - `Uint8Array` values from `8 B` to `1 MiB`
 - a separate `Arc<Vec<u8>>` sweep for small shared-byte payloads
 
-The results are from one run on Ubuntu 23.10, `x86_64`, with an AMD Ryzen 7 4700U. Every runtime uses the same batch sizes (`1`, `10`, and `100`), warmup, measured iterations, and percentile reporting.
+The results are from one run of Knitting `0.1.36` on Ubuntu 23.10, `x86_64`, with an
+AMD Ryzen 7 4700U, recorded in March 2026. Every runtime uses the same batch sizes (`1`, `10`, and `100`), warmup, measured iterations, and percentile reporting.
 
-These numbers describe this benchmark and this machine, not a universal ranking of runtimes.
+The saved report names the source files but does not record the Rust, Tokio
+or JavaScript runtime versions. These historical results have not been repeated
+on the current Knitting release.
+
+The [Performance page](/benchmarks/introduction/#binary-round-trips-are-comparable-to-tokio)
+uses the size-sweep averages from this report. The M3 Ultra worker tests on
+[Results and methodology](/benchmarks/results/) were recorded on different hardware.
 
 ## Small payloads: `f64`
 
@@ -99,7 +108,7 @@ Bun is fastest from `8 B` through `512 B`. Tokio takes the lead from `1 KiB` thr
   loading="lazy"
 />
 
-Both axes are logarithmic, so the chart is showing changes across several orders of magnitude. The important shape is the transition from fixed per-message overhead to payload-copying cost.
+Both axes are logarithmic, so the chart is showing changes across several orders of magnitude. The key trend is the transition from fixed per-message overhead to payload-copying cost.
 
 ## A separate shared-ownership reference
 
@@ -122,8 +131,8 @@ Read this chart as “how close can normal transport get to shared ownership?”
 The benchmark keeps the important parts aligned:
 
 - Both sides create the work up front and wait for the whole batch to finish.
-- Both use one worker thread, so the sender cannot quietly spread across a larger worker pool.
-- The default string and byte paths pay for a full round trip. Tokio clones on send and clones again for the worker reply instead of taking a cheaper move-only shortcut.
+- Both use one worker thread, so both process the batch with the same worker count.
+- The default string and byte paths pay for a full round trip. Tokio clones on send and clones again for the worker reply rather than transferring ownership of the original allocation.
 
 The deliberate difference is memory management. Tokio's `String` and `Vec<u8>` paths allocate and copy with `clone()`. Knitting copies into preallocated shared memory and manages those regions itself. That cost is part of what this benchmark is trying to measure, so it is left in the numbers rather than normalized away.
 
@@ -131,7 +140,7 @@ The `Arc<Vec<u8>>` test is kept separate because shared ownership does less work
 
 ## Why the results change with payload size
 
-Knitting keeps transport data in reused typed-array-backed buffers. Small primitive values fit in the per-call header, while larger values spill into a preallocated shared payload buffer. Fixed worker lanes and a small allocator-like bookkeeping layer reduce general-purpose allocation in the hot path.
+Knitting keeps transport data in reused typed-array-backed buffers. Small primitive values fit in the per-call header, while larger values spill into a preallocated shared payload buffer. Fixed worker lanes and a small allocation bookkeeping layer reduce general-purpose allocation in the hot path.
 
 That design has a tradeoff: it adds implementation complexity and memory bookkeeping. The payoff shows up most clearly when copying and allocating a large payload would otherwise dominate the round trip.
 

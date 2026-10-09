@@ -1,6 +1,6 @@
 ---
 title: Why Knitting
-description: "Why Knitting exists: move hot JavaScript functions off the main thread without turning them into services."
+description: "Why Knitting exists: give CPU-heavy JavaScript functions their own execution lane without turning them into services or wasting CPU on the boundary."
 head:
   - tag: meta
     attrs:
@@ -14,58 +14,69 @@ sidebar:
   order: 1
 ---
 
-The first time one function gets expensive, the usual advice is to pull it out
-into a service. That is a lot of machinery for one function.
+Your event loop can be busy while other CPU cores sit idle.
 
-A parser grows. A validator picks up rules. A hash, render, or compression step
-starts taking more of the event loop than it should. Nothing else about the app
-has changed: one function got heavy, and the fix on offer is new infrastructure.
+As an application grows, parsing, validation, hashing, rendering, or compression
+can start taking too much time on the event loop. The expensive function is
+doing useful work, but everything else waits behind it — including routes that
+were cheap all along.
 
-Knitting is for that gap. Keep the code where it is, move the work off the main
-thread.
+Knitting gives that function another execution lane. The code stays in the
+application; only its execution moves to a thread or isolated process.
 
-## The hot-function problem
+> **Keep expensive JavaScript off the event loop, not out of the application.**
 
-CPU pressure in a JavaScript app rarely spreads evenly. Real codebases often
-have thousands of functions, but only a few of them create most of the cost.
+## The problem is waiting
 
-That changes the size of the fix. When the cost is concentrated in a handful of
-functions, the response can be concentrated too — moving the expensive part does
-not have to mean moving the application around it.
+CPU pressure in a JavaScript application rarely spreads evenly. A codebase may
+contain thousands of functions while a small number account for most of its
+CPU time.
 
-## The usual choices
+On one event loop, those functions do more than slow their own callers. They
+create head-of-line blocking: routing, I/O completions, and cheap requests all
+wait for the same thread. A `/ping` handler can do almost no work and
+still have high p99 latency because it arrived behind a render or hash.
 
-When the main thread starts paying for those functions, JavaScript developers
-usually reach for one of three options.
+When a few functions account for most of the CPU time, moving those functions
+to workers can be enough. The rest of the application can stay where it is.
 
-**Do nothing.** It is simple, and for a while it works. But every
-millisecond a hot function spends on the main thread is a millisecond the server
-cannot spend on everything else. Cheap routes queue behind expensive ones.
-Scaling out dilutes the pain, but it does not remove the hot path from the
-event loop.
+## The work doesn’t get cheaper. The waiting does.
 
-**Workers.** Closer to the mark: the work leaves the main thread and stays on
-the machine. What makes it painful is everything around it. The runtime hands
-you `postMessage` and leaves the rest to you — request IDs, routing, errors,
-promises, lifecycle, payload choices. That plumbing is the original reason
-Knitting exists.
+The Hono example makes this visible. `/ssr` and `/jwt` are CPU-heavy; `/ping`
+returns a small response and never enters the Knitting pool.
 
-**Make it a service.** Sometimes that is the right call. Separate ownership,
-deploy cadence, and failure domains are all real reasons to cross the network.
-But for one hot function, owned by the same team, in the same repo, the bill is
-strange: a network hop, serialization, deployment, monitoring, and one more
-thing to operate. The function did not ask for a hostname. It asked for
-somewhere else to run.
+At a fixed mixed load of 2,000 requests per second per route:
 
-## The fourth shape
+| | Hono only | Hono + one worker |
+|---|---:|---:|
+| Completed load | 6,000 rps | 5,999 rps |
+| Server-process CPU | 1.08 cores | 1.10 cores |
+| `/ping` p99 | 16.93 ms | 2.31 ms |
+| `/ssr` p99 | 14.32 ms | 8.71 ms |
+| `/jwt` p99 | 25.18 ms | 9.76 ms |
 
-Knitting adds a smaller boundary: the code stays where it is, and only the
-execution moves.
+An equivalent repeat of the one-worker configuration recorded 1.06 cores and a
+2.18 ms `/ping` p99. Read the CPU result as approximately 1.1 cores for both
+configurations, not as a meaningful difference between 1.08 and 1.10.
 
-The function stays in your repo, in your language, in your types — one
-`import` away from its caller. What changes is *where it runs* and *what it can
-touch*. You export it, hand it to a pool, and call it like the async function it
-already was. Underneath, it runs on a real thread or an isolated process.
+The computation did not disappear. SSR and JWT still consumed CPU; they
+consumed it on another lane. Knitting kept the transport, waiting, and
+coordination cost low enough that the fixed workload cost about the same CPU,
+while `/ping` no longer queued behind the expensive work.
+
+That is **performance isolation**: same application, same traffic, roughly the
+same CPU, but one class of work no longer controls the latency of another.
+
+These are workload-specific 15-second runs on Bun 1.4.0, not a universal
+performance guarantee. The
+[full benchmark report](/documents/hono-16core-benchmark.md) includes the
+hardware, harness, repeat variance, raw measurements, and limitations.
+
+## A function-level execution boundary
+
+The function stays in the same repository and deployment, with its types intact. You
+export it, hand it to a pool, and call it like an async function. What changes
+is where it runs and what it can touch.
 
 ```ts
 import { createPool, isMain } from "knitting";
@@ -78,186 +89,105 @@ if (isMain) {
 }
 ```
 
-That is the whole boundary: one export, one pool, one call. `hello` still reads
-like a plain function, but it no longer runs on the main thread.
+That is the boundary: one export, one pool, one call. `hello` still reads like
+a plain function, but it no longer executes on the main thread.
 
-Call that a **function-level execution boundary**: a way to move the expensive
-part without moving the whole app.
+The runtime handles the mechanics around that call: task discovery, routing,
+promises, errors, lifecycle, scheduling, and payload transport. The application
+chooses the few functions that need another lane rather than duplicating or
+extracting everything around them.
 
-Compare what each option costs for the same few hot functions:
+## The CPU cost of the boundary is part of the product
 
-| | In-process | Hand-rolled workers | Microservice | Knitting |
-|---|---|---|---|---|
-| Main thread protected | no | yes | yes | yes |
-| Code stays in the app | yes | mostly | no | yes |
-| Call-site ergonomics | function call | protocol you wrote | HTTP client | function call |
-| Transport cost | none | `postMessage` per call | network + JSON | shared-memory mailboxes |
-| Isolation available | none | thread only | full, always-on | a dial, per pool |
-| New deploy unit | no | no | yes | no |
+Moving work to another thread only helps if communication and coordination
+leave enough CPU time for the application. Keeping that overhead low is a
+central design goal.
 
-Two things make that boundary worth having.
+Useful task work should consume CPU. Waiting, polling, unnecessary copying, and
+oversized pools should not. That principle shapes the runtime:
 
-**Transport cost matters.** Workers can feel disappointing when reaching the
-worker costs more than the work. Knitting uses shared-memory mailboxes instead
-of the runtime's message queue, so small and medium calls stay practical. The
-[Architecture](/extras/architecture/) page explains the mechanism, and the
-[benchmarks](/benchmarks/introduction/) show where the shape wins and where it
-does not.
+- idle workers park instead of continuously spinning;
+- multi-worker pools skip the single-worker spin budget and park immediately;
+- supported Node.js and Bun hosts wait on a completion doorbell instead of
+  polling empty response mailboxes;
+- shared-memory mailboxes and zero-copy paths keep transport work small;
+- one worker is the starting point for a mixed HTTP service, rather than one
+  worker per visible core.
 
-**Isolation should match the task.** A microservice gives you process isolation
-whether or not you need it. Knitting lets each pool pick its own boundary:
-in-process guards, a bootstrap hook, runtime-native permissions, or a real
-OS-sandboxed process. Trusted math can stay on cheap threads. An untrusted
-plugin can run behind `bwrap`, and
-[`importTask`](/guides/defining-tasks/#module-loading) keeps its code off the
-host entirely.
+A pool intended to recover usable capacity should consume almost none when it
+has no work. In the Hono measurements, the current policy held a fifteen-worker
+pool to 0.164 idle cores; the rejected spinning policy consumed 6.368. That 39x
+difference shows how much CPU an idle waiting policy can consume.
+
+The [Multi-threading](/guides/multi-threading/) guide explains the shipped
+defaults and how to choose a worker count. The
+[Architecture](/extras/architecture/) page covers the mailbox, park/wake cycle,
+and host doorbell.
+
+## Why not use the usual alternatives?
+
+Each alternative is right for a different boundary.
+
+**Keep the work inline.** This has no transport or worker machinery, and it is
+the right answer while the task is cheap. Once it becomes expensive, every
+millisecond it occupies the event loop is a millisecond unavailable to
+unrelated work.
+
+**Run more application processes.** Cluster mode lets an application use more
+cores, and a load balancer can reduce some queueing. It also duplicates the
+whole application and gives each process the same mixed workload. Each event
+loop can still receive a cheap request behind an expensive one. Knitting draws
+the boundary between the workload classes instead: the host keeps coordination
+and cheap work while selected functions use worker lanes.
+
+**Hand-roll workers.** This puts the boundary in the right place, but the
+runtime gives you a message primitive rather than a function-call system. You
+still own request IDs, routing, promise settlement, errors, payload encoding,
+lifecycle, cancellation, and scheduling. Removing that plumbing is the
+original reason Knitting exists.
+
+**Make the function a service.** This is right when the work needs independent
+ownership, deployment, cross-machine scale, or a separate failure domain. It is
+an expensive answer when one function, owned by the same team in the same repo,
+merely needs another execution lane. A local worker avoids the network and deployment overhead of a service.
+
+Knitting occupies the space between inline execution and a network service: a
+local execution boundary around the work that needs one.
+
+## The boundary can become stronger without changing the call
+
+Performance isolation usually starts with a thread. Some tasks also need a
+trust or failure boundary. Knitting keeps the call model the same while each
+pool chooses how strong that boundary should be.
+
+Trusted compute can stay on a cheap thread. A task can instead run in a separate
+process with runtime permissions, a bootstrap hook, `bwrap`, or a container.
+[`importTask`](/guides/defining-tasks/#module-loading) keeps worker-only code off
+the host entirely.
 
 Knitting does not replace distributed systems. If you need cross-machine scale,
-separate failure domains, or team-level ownership boundaries, you still need the
-network. Knitting is for the moment before that, when the code belongs in the
-app but the work no longer belongs on the main thread.
+independent release schedules, team ownership, or a separate network failure
+domain, use a service. Knitting is for the point before that: the code still
+belongs in the application, but the work no longer belongs on its event loop.
 
-## Where it's going
+## What Knitting does not promise
 
-:::note[Direction, not commitment]
-Everything below is roadmap as of June 2026. None of it is shipped API, and the shape may change or be cut as the design matures. Build against what the [guides](/guides/defining-tasks/) document today.
-:::
+- It does not make CPU-heavy work consume no CPU; it changes where that CPU is
+  spent and keeps the boundary overhead small.
+- It does not make databases, networks, or filesystems faster. Keep naturally
+  asynchronous I/O on the event loop.
+- It does not guarantee that more workers mean more throughput. A single event
+  loop may remain the producer, so measure worker counts against the workload.
+- It does not turn one benchmark into a universal cost claim. Runtime,
+  hardware, traffic mix, payload size, and latency target all affect the result.
 
-Knitting today is task-call oriented: one request in, one response out. The
-transport underneath it is more general than that. Mailboxes, payload buffers,
-and named mappings leave room for other shapes.
-
-<div class="why-roadmap" aria-label="Tentative roadmap">
-  <article class="why-roadmap-item">
-    <div class="why-roadmap-meta">
-      <span class="why-roadmap-step">01</span>
-      <span class="why-roadmap-status">Nearer term</span>
-    </div>
-    <h3>Channels</h3>
-    <p>
-      Some same-host work is not a task call: progress, long-lived coordination,
-      producer/consumer flows. Today the honest answer is <code>MessagePort</code>.
-    </p>
-    <p>
-      A future channel API would keep that shape on the same shared-memory
-      transport, without pretending every conversation is request/response.
-    </p>
-  </article>
-
-  <article class="why-roadmap-item">
-    <div class="why-roadmap-meta">
-      <span class="why-roadmap-step">02</span>
-      <span class="why-roadmap-status">Longer term</span>
-    </div>
-    <h3>Cross-language, same-host</h3>
-    <p>
-      The mailbox protocol is not tied to JavaScript. Process workers already
-      open named mappings, which makes the boundary more about memory than a
-      specific runtime.
-    </p>
-    <p>
-      A later version could let JavaScript hand large payloads to another
-      runtime on the same machine without copying through JSON or
-      re-marshalling at every hop.
-    </p>
-  </article>
-</div>
-
-That is why the transport is built with more care than a worker pool strictly
-needs. Until those APIs ship, though, judge Knitting on what it does now.
-
-<style is:global>{`
-  .sl-markdown-content .why-roadmap {
-    --why-roadmap-border: color-mix(in srgb, var(--sl-color-accent) 28%, var(--sl-color-gray-5));
-    --why-roadmap-panel: color-mix(in srgb, var(--sl-color-bg-nav) 82%, var(--sl-color-accent) 8%);
-    --why-roadmap-muted: color-mix(in srgb, var(--sl-color-gray-2) 78%, var(--sl-color-white) 8%);
-    display: grid;
-    gap: 1rem;
-    margin-block: 1.4rem 1.6rem;
-  }
-
-  .sl-markdown-content .why-roadmap-item {
-    position: relative;
-    overflow: hidden;
-    padding: 1.05rem 1.1rem 1.1rem 1.35rem;
-    border: 1px solid var(--why-roadmap-border);
-    border-radius: 8px;
-    background:
-      linear-gradient(90deg, color-mix(in srgb, var(--sl-color-accent) 10%, transparent), transparent 42%),
-      var(--why-roadmap-panel);
-  }
-
-  .sl-markdown-content .why-roadmap-item::before {
-    content: "";
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 0.24rem;
-    background: linear-gradient(
-      180deg,
-      var(--sl-color-accent),
-      color-mix(in srgb, var(--sl-color-accent) 38%, transparent)
-    );
-  }
-
-  .sl-markdown-content .why-roadmap-meta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.45rem;
-    margin-bottom: 0.55rem;
-  }
-
-  .sl-markdown-content .why-roadmap-step,
-  .sl-markdown-content .why-roadmap-status {
-    display: inline-flex;
-    align-items: center;
-    min-height: 1.45rem;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    line-height: 1;
-  }
-
-  .sl-markdown-content .why-roadmap-step {
-    padding-inline: 0.45rem;
-    border: 1px solid color-mix(in srgb, var(--sl-color-accent) 45%, transparent);
-    color: var(--sl-color-accent-high);
-  }
-
-  .sl-markdown-content .why-roadmap-status {
-    padding-inline: 0.55rem;
-    background: color-mix(in srgb, var(--sl-color-accent) 14%, transparent);
-    color: var(--why-roadmap-muted);
-    text-transform: uppercase;
-  }
-
-  .sl-markdown-content .why-roadmap-item h3 {
-    margin: 0 0 0.45rem;
-    padding-left: 0;
-    color: var(--sl-color-white);
-    font-size: 1.12rem;
-    letter-spacing: 0;
-  }
-
-  .sl-markdown-content .why-roadmap-item p {
-    margin: 0;
-    color: var(--why-roadmap-muted);
-  }
-
-  .sl-markdown-content .why-roadmap-item p + p {
-    margin-top: 0.62rem;
-  }
-
-  @media (min-width: 54rem) {
-    .sl-markdown-content .why-roadmap {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-`}</style>
+Knitting gives expensive functions their own execution lane while keeping
+communication and coordination overhead low.
 
 ## Read next
 
-- [Quick Start](/start/quick-start/) -- the ten-line version of everything argued above.
-- [Architecture](/extras/architecture/) -- the mailbox transport, lane model, and safety layers in detail.
-- [Process workers](/guides/process-workers/) -- the hard end of the isolation dial: sandboxes and containers.
-- [Examples](/examples/intro_examples/) -- the hot functions behind this argument, as copyable code.
+- [Quick Start](/start/quick-start/) -- the ten-line version of the execution boundary.
+- [Multi-threading](/guides/multi-threading/) -- choose a worker count without starving the host.
+- [Architecture](/extras/architecture/) -- shared-memory transport, scheduling, and park/wake behavior.
+- [Process workers](/guides/process-workers/) -- stronger isolation through processes, sandboxes, and containers.
+- [Hono server example](/examples/servers/hono_server/) -- the mixed workload behind the latency result.

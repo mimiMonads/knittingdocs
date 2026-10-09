@@ -87,7 +87,35 @@ const crossOriginIsolationHeaders = {
 export default defineConfig({
   // The browser page used to live at the site root; keep the old URL working.
   redirects: {
+    "/extras/performance-claims": "/benchmarks/introduction/",
+    "/benchmarks/node": "/benchmarks/results/#nodejs",
+    "/benchmarks/deno": "/benchmarks/results/#deno",
+    "/benchmarks/bun": "/benchmarks/results/#bun",
     "/browser": "/guides/browser/",
+    "/guides": "/start/quick-start/",
+    // The examples used to be nested under /examples/data_transforms/.
+    "/examples/data_transforms": "/examples/intro_examples/",
+    "/examples/data_transforms/intro_data_transforms": "/examples/intro_examples/",
+    "/examples/data_transforms/validation/schema_validate":
+      "/examples/validation/schema_validate/",
+    "/examples/data_transforms/validation/jwt_revalidation":
+      "/examples/validation/jwt_revalidation/",
+    "/examples/data_transforms/validation/salt_hashing":
+      "/examples/validation/salt_hashing/",
+    "/examples/data_transforms/validation/prompt_token_budgeting":
+      "/examples/text/prompt_token_budgeting/",
+    "/examples/data_transforms/validation/latex_papers":
+      "/examples/text/latex_papers/",
+    "/examples/data_transforms/rendering_output/react_ssr":
+      "/examples/rendering/react_ssr/",
+    "/examples/data_transforms/rendering_output/react_ssr_compress":
+      "/examples/rendering/react_ssr_compress/",
+    "/examples/data_transforms/rendering_output/markdown_to_html":
+      "/examples/rendering/markdown_to_html/",
+    "/examples/data_transforms/rendering_output/pdf_invoices":
+      "/examples/rendering/pdf_invoices/",
+    "/examples/data_transforms/rendering_output/hono_server":
+      "/examples/servers/hono_server/",
   },
   ...(site ? { site } : {}),
   ...(base ? { base } : {}),
@@ -108,7 +136,7 @@ export default defineConfig({
       title: "Knitting",
       description:
         "A zero-dependency concurrency runtime for Node.js, Deno, and Bun. Run typed JavaScript tasks on threads or isolated processes without blocking the main thread.",
-      favicon: "/favicon.ico",
+      favicon: assetPath("brand/knitting-avatar.png"),
       head: [
         {
           tag: "style",
@@ -188,26 +216,17 @@ export default defineConfig({
           tag: "link",
           attrs: {
             rel: "icon",
-            href: assetPath("favicon-32x32.png"),
+            href: assetPath("brand/knitting-avatar.png"),
             type: "image/png",
-            sizes: "32x32",
-          },
-        },
-        {
-          tag: "link",
-          attrs: {
-            rel: "icon",
-            href: assetPath("favicon-16x16.png"),
-            type: "image/png",
-            sizes: "16x16",
+            sizes: "512x512",
           },
         },
         {
           tag: "link",
           attrs: {
             rel: "apple-touch-icon",
-            href: assetPath("apple-touch-icon.png"),
-            sizes: "180x180",
+            href: assetPath("brand/knitting-avatar.png"),
+            sizes: "512x512",
           },
         },
         {
@@ -222,13 +241,6 @@ export default defineConfig({
           attrs: {
             name: "msapplication-TileColor",
             content: "#FF7A1F",
-          },
-        },
-        {
-          tag: "meta",
-          attrs: {
-            name: "msapplication-TileImage",
-            content: assetPath("mstile-150x150.png"),
           },
         },
       ],
@@ -261,11 +273,38 @@ export default defineConfig({
         {
           label: "Examples",
           collapsed: true,
-          autogenerate: { directory: "examples" },
+          items: [
+            { slug: "examples/intro_examples" },
+            {
+              label: "Math and simulation",
+              collapsed: true,
+              autogenerate: { directory: "examples/maths" },
+            },
+            {
+              label: "Validation",
+              collapsed: true,
+              autogenerate: { directory: "examples/validation" },
+            },
+            {
+              label: "Rendering",
+              collapsed: true,
+              autogenerate: { directory: "examples/rendering" },
+            },
+            {
+              label: "Text",
+              collapsed: true,
+              autogenerate: { directory: "examples/text" },
+            },
+            {
+              label: "Servers",
+              collapsed: true,
+              autogenerate: { directory: "examples/servers" },
+            },
+          ],
         },
         {
-          label: "Benchmarks",
-          collapsed: true,
+          label: "Performance",
+          collapsed: false,
           autogenerate: { directory: "benchmarks" },
         },
         {

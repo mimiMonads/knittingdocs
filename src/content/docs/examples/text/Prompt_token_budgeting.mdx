@@ -1,0 +1,203 @@
+---
+title: Prompt token budgeting
+description: Trim LLM prompts to fit a token budget before sending them to any model.
+hero:
+  title: 'LLM input shaping'
+sidebar:
+  order: 30
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Code } from '@astrojs/starlight/components';
+import { getCode } from '../../../../lib/code-snippets';
+import RuntimeRunTabs from '../../../../components/RuntimeRunTabs.astro';
+
+export const run = getCode("text/prompt_token_budgeting/run_prompt_token_budget.ts");
+export const bench = getCode("text/prompt_token_budgeting/bench_prompt_token_budget.ts");
+export const budget = getCode("text/prompt_token_budgeting/token_budget.ts");
+export const fixtures = getCode("text/prompt_token_budgeting/prompt_fixtures.ts");
+
+This example trims LLM prompts to fit a token budget before an API call. It
+counts tokens with `tiktoken`, drops the oldest conversation turns first, and
+shortens the query only if removing every turn is still not enough. The budgeting logic is model-agnostic -- the example uses the tokenizer for `gpt-4o-mini`, but the pattern is the same for any model with an input limit.
+
+:::note
+This example never calls an LLM. It only builds prompts and counts tokens, so `tiktoken` is the
+only package it needs. `mitata` is required for the benchmark script alone.
+:::
+
+## How it works
+
+1. The host builds synthetic chat traffic: same system prefix, 3 to 14 turns of history, and a query.
+2. Each task builds the full prompt and counts tokens with `tiktoken`.
+3. If the prompt is over budget, it drops the oldest turns one at a time, re-counting after each.
+4. If no turns are left and it is still over, it clips the query to whatever budget remains.
+5. The host aggregates token savings and trim counts.
+
+Four files:
+
+- `token_budget.ts` -- the budgeting logic and the two tasks
+- `prompt_fixtures.ts` -- the synthetic conversations, so both scripts share one generator
+- `run_prompt_token_budget.ts` -- what budgeting actually does to a workload
+- `bench_prompt_token_budget.ts` -- host vs workers, with `mitata`
+
+There are two tasks because the right return shape depends on what you need. `preparePrompt`
+returns the whole `PromptPlan`, prompt string included, which is what an application wants.
+`summarizeBatch` takes a batch and returns counters only -- no prompt strings -- which is what
+you want when you are measuring, or when you only need the accounting.
+
+## Example budget decision
+
+Minimal usage:
+
+```ts
+using pool = createPool({ threads: 3 })({ preparePrompt });
+const plan = await pool.call.preparePrompt({
+  model: "gpt-4o-mini",
+  systemPrefix: "You are a docs assistant.",
+  history: ["Need guidance on schema validation.", "Keep the answer short."],
+  query: "Give a migration plan and one code example.",
+  maxInputTokens: 400,
+});
+```
+
+Output shape:
+
+```ts
+{
+  prompt: "...final prompt string...",
+  rawInputTokens: 1061,
+  inputTokens: 399,
+  staticTokens: 47,
+  dynamicTokens: 352,
+  trimmedTurns: 3,
+  queryWasTrimmed: true,
+}
+```
+
+The useful part is not just the final `prompt`. You also get the bookkeeping needed to explain
+why a prompt was trimmed and by how much -- which turns were dropped, whether the query itself
+had to be clipped, and how much of the budget the fixed prefix uses.
+
+## Run
+
+:::info
+<RuntimeRunTabs
+  bunCommand="bun src/run_prompt_token_budget.ts"
+  denoCommand="deno run -A src/run_prompt_token_budget.ts"
+  nodeCommand="npx tsx src/run_prompt_token_budget.ts"
+/>
+:::
+
+Expected output:
+
+```
+Prompt token budgeting
+  requests         : 2,000
+  budget           : 400 tokens per prompt
+  raw tokens       : 904,702
+  budgeted tokens  : 684,035
+  saved            : 220,667 (24.4%)
+  trimmed          : 1,057 / 2,000 requests
+  turns dropped    : 4,286
+  query clipped    : 118
+  elapsed          : 1640 ms
+
+One request, in detail:
+  1061 -> 399 tokens
+  3 turns dropped
+  query clipped: true
+  47 of those tokens are the fixed prefix
+```
+
+Choose a budget that some sample prompts exceed. Otherwise, the example only
+measures token counting and never exercises the trimming logic.
+
+## Optional benchmark
+
+:::info
+<RuntimeRunTabs
+  bunCommand="bun src/bench_prompt_token_budget.ts"
+  nodeCommand="npx tsx src/bench_prompt_token_budget.ts"
+/>
+:::
+
+The benchmark compares budgeting throughput on the host with the same work on workers. Batches are sent
+through `summarizeBatch`, so only counters come back, never prompt strings.
+
+```
+token parity check: host=341,835 worker=341,835 OK match
+
+Prompt token budgeting benchmark (mitata)
+workload: build prompt + tokenize + trim to budget
+requests per iteration: 1,000
+budget: 400 tokens
+trimmed: 528 requests, 24.4% of tokens saved
+threads: 3 | batch: 32
+
+benchmark                       avg (min … max)
+host (1,000 req)                   1.45 s/iter (1.39 s … 1.46 s)
+knitting (3 threads, 1,000 req) 471.93 ms/iter (468.14 ms … 497.00 ms)
+
+summary
+  knitting (3 threads, 1,000 req)
+   3.08x faster than host (1,000 req)
+```
+
+## Why more workers make this slower
+
+This workload stops getting faster after a few workers. The measurements below
+show why choosing a pool size requires more than counting cores.
+
+On a 4-core laptop the best setting measured here was **three workers plus the
+inliner** -- four lanes for four cores -- at roughly `3x`. Beyond that, performance drops: eight workers measured consistently slower than three or four. One
+worker performed about the same as the host, within measurement noise.
+
+With plain arithmetic in place of tokenization, the same pool and batching
+reached `4.8x` at eight threads on the same laptop. This suggests that the
+tokenizer is limiting scaling in this workload.
+
+The reason is that `tiktoken` is a WASM module with a large BPE table, and every
+worker instantiates **its own copy**. Resident memory here went from 67 MB at
+baseline to 630 MB with eight workers -- roughly 55-60 MB per worker. Those
+tables are not shared and exceed the available CPU cache. Adding workers can
+therefore increase cache pressure without improving throughput.
+
+Two practical consequences:
+
+- **Size the pool for the tokenizer, not for `os.cpus().length`.** Start at 2-4
+  lanes and measure. The inliner helped in this benchmark -- it adds a lane without adding another encoder-sized worker.
+- **Keep many more batches than lanes.** Batching amortizes dispatch, but one
+  giant batch per lane cannot rebalance. At 1,000 requests in batches of 250 the
+  pool measured *slower than the host* (`0.81x`); the same work in batches of 32
+  was the fastest setting tried.
+
+:::note
+These ratios were measured on one thermally limited laptop. On your own
+machine, check both throughput and memory use as you add workers.
+:::
+
+## Code
+
+<Tabs>
+  <TabItem label="token_budget.ts">
+    <Code code={budget} lang="ts" title={"token_budget.ts"} />
+  </TabItem>
+  <TabItem label="prompt_fixtures.ts">
+    <Code code={fixtures} lang="ts" title={"prompt_fixtures.ts"} />
+  </TabItem>
+  <TabItem label="run_prompt_token_budget.ts">
+    <Code code={run} lang="ts" title={"run_prompt_token_budget.ts"} />
+  </TabItem>
+  <TabItem label="bench_prompt_token_budget.ts">
+    <Code code={bench} lang="ts" title={"bench_prompt_token_budget.ts"} />
+  </TabItem>
+</Tabs>
+
+## When this matters
+
+Token budgeting is a preflight step that runs on every LLM request, and it is pure CPU work on
+the thread you most want free. On a busy chat service -- many users, long histories -- it is
+enough to add latency to requests that are otherwise just waiting on the model. Moving it to a
+pool keeps the main thread on routing and I/O, and gives you predictable input sizes, which is
+what makes cost per request predictable too.

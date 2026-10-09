@@ -1,171 +1,134 @@
 import { createPool, isMain } from "knitting";
-import { scanForProbablePrime } from "./prime_scan.ts";
+import {
+  scanForProbablePrime,
+  type ScanResult,
+} from "./prime_scan.ts";
 
-function intArg(name: string, fallback: number) {
-  const i = process.argv.indexOf(`--${name}`);
-  if (i !== -1 && i + 1 < process.argv.length) {
-    const v = Number(process.argv[i + 1]);
-    if (Number.isFinite(v) && v > 0) return Math.floor(v);
-  }
-  return fallback;
+type Options = {
+  threads: number;
+  bits: number;
+  region: number;
+  rounds: number;
+};
+
+type AbortablePromise<T> = Promise<T> & {
+  reject: (reason?: unknown) => void;
+};
+
+function positiveIntArg(name: string, fallback: number): number {
+  const index = process.argv.indexOf(`--${name}`);
+  const value = index === -1 ? undefined : Number(process.argv[index + 1]);
+  return Number.isSafeInteger(value) && value > 0 ? value : fallback;
 }
 
-const THREADS = intArg("threads", 4);
-const BITS = intArg("bits", 1500);
-const WINDOW = intArg("window", 10_000_000);
-const CHUNK = intArg("chunk", 500_000);
-const ROUNDS = intArg("rounds", 10);
+function readOptions(): Options {
+  return {
+    threads: positiveIntArg("threads", 4),
+    bits: positiveIntArg("bits", 1_500),
+    region: positiveIntArg("region", 1_000_000_000),
+    rounds: positiveIntArg("rounds", 8),
+  };
+}
 
-function xorshift32(s: number): number {
-  s |= 0;
-  s ^= s << 13;
-  s ^= s >>> 17;
-  s ^= s << 5;
-  return s | 0;
+function xorshift32(state: number): number {
+  state |= 0;
+  state ^= state << 13;
+  state ^= state >>> 17;
+  state ^= state << 5;
+  return state | 0;
 }
 
 function makeRandomOdd(bits: number, seed: number): bigint {
-  // Build a BigInt from 3x 32-bit chunks, mask to bits, set top bit, make odd.
-  let s = seed | 0;
-  let x = 0n;
-  for (let k = 0; k < 3; k++) {
-    s = xorshift32(s);
-    x = (x << 32n) | BigInt(s >>> 0);
+  let state = seed;
+  let value = 0n;
+
+  for (let offset = 0; offset < bits; offset += 32) {
+    state = xorshift32(state);
+    value = (value << 32n) | BigInt(state >>> 0);
   }
+
   const mask = (1n << BigInt(bits)) - 1n;
-  x &= mask;
-  x |= 1n << BigInt(bits - 1);
-  x |= 1n;
-  return x;
+  return (value & mask) | (1n << BigInt(bits - 1)) | 1n;
 }
 
-const seedBase = (Date.now() | 0) ^ 0x9e3779b9;
-let windowStartOdd = makeRandomOdd(BITS, seedBase);
+function waitForFirstPrime(
+  jobs: AbortablePromise<ScanResult>[],
+): Promise<ScanResult | null> {
+  return new Promise((resolve, reject) => {
+    let remaining = jobs.length;
 
-const { call, shutdown } = createPool({
-  threads: THREADS,
-  balancer: "firstIdle",
-})({ scanForProbablePrime });
+    for (const job of jobs) {
+      job.then(
+        (result) => {
+          if (result.prime !== null) {
+            resolve(result);
+            return;
+          }
 
-let stopping = false;
-process.on("SIGINT", () => {
-  if (stopping) return;
-  stopping = true;
-  console.log("\nCtrl+C received. Shutting down...");
-  shutdown();
-  process.exit(0);
-});
-
-function splitCounts(total: number, parts: number): number[] {
-  const base = Math.floor(total / parts);
-  const rem = total % parts;
-  const out = new Array(parts);
-  for (let i = 0; i < parts; i++) out[i] = base + (i < rem ? 1 : 0);
-  return out;
-}
-
-async function scanOneWindow(): Promise<
-  { hit: string | null; tested: number }
-> {
-  // We interleave odds across threads: thread i tests start+2i, start+2i+2T, ...
-  const stepNum = 2 * THREADS;
-
-  // Divide WINDOW across threads, and within each thread further divide into CHUNK-sized tasks.
-  const perThread = splitCounts(WINDOW, THREADS);
-
-  let bestHit: string | null = null;
-  let tested = 0;
-
-  // For each thread, we run sequential “subtasks” so each thread covers its share of WINDOW.
-  // But all threads run in parallel each wave.
-  const subTasksPerThread = perThread.map((c) => Math.ceil(c / CHUNK));
-  const maxSubs = Math.max(...subTasksPerThread);
-
-  for (let sub = 0; sub < maxSubs; sub++) {
-    const jobs: Promise<[number, string, number]>[] = [];
-
-    for (let t = 0; t < THREADS; t++) {
-      const threadTotal = perThread[t];
-      const startAt = sub * CHUNK;
-      if (startAt >= threadTotal) continue;
-
-      const count = Math.min(CHUNK, threadTotal - startAt);
-
-      // offset in "odd steps": 2*t + 2*THREADS*startAt
-      const offsetNum = 2 * t + stepNum * startAt;
-
-      jobs.push(
-        call.scanForProbablePrime([
-          windowStartOdd.toString(),
-          count,
-          stepNum,
-          offsetNum,
-          ROUNDS,
-        ]),
+          remaining--;
+          if (remaining === 0) resolve(null);
+        },
+        reject,
       );
-
-      tested += count;
     }
-
-    const results = await Promise.all(jobs);
-
-    // If any job found a hit, keep the smallest hit (nice for consistency)
-    for (const [found, primeStr] of results) {
-      if (found) {
-        if (bestHit === null) bestHit = primeStr;
-        else {
-          // compare as BigInt safely
-          const a = BigInt(bestHit);
-          const b = BigInt(primeStr);
-          if (b < a) bestHit = primeStr;
-        }
-      }
-    }
-  }
-
-  return { hit: bestHit, tested };
+  });
 }
 
 async function main() {
-  console.log("Prime hunt (probable primes via Miller–Rabin)");
-  console.log(
-    "threads:",
-    THREADS,
-    "bits:",
-    BITS,
-    "window:",
-    WINDOW.toLocaleString(),
-    "chunk:",
-    CHUNK.toLocaleString(),
-    "rounds:",
-    ROUNDS,
-  );
-  console.log("start  :", windowStartOdd.toString());
-  console.log("mode   : infinite windows (Ctrl+C to stop)");
+  const options = readOptions();
+  const start = makeRandomOdd(options.bits, 0x6d2b_79f5);
+  const workerCount = Math.min(options.threads, options.region);
+  const step = 2 * options.threads;
 
-  let windowsDone = 0;
-  let totalTested = 0n;
+  using pool = createPool({
+    threads: options.threads,
+    abortSignalCapacity: workerCount,
+  })({ scanForProbablePrime });
 
-  while (true) {
-    const { hit, tested } = await scanOneWindow();
-    windowsDone++;
-    totalTested += BigInt(tested);
+  const started = performance.now();
+  const jobs: AbortablePromise<ScanResult>[] = [];
 
-    if (hit) {
-      console.log(
-        `[window ${windowsDone}] +${tested.toLocaleString()} tested (total ${totalTested.toString()}) | HIT: ${hit}`,
-      );
-    } else {
-      console.log(
-        `[window ${windowsDone}] +${tested.toLocaleString()} tested (total ${totalTested.toString()}) | no hit (Ctrl+C to stop)`,
-      );
+  for (let worker = 0; worker < workerCount; worker++) {
+    const count = Math.ceil((options.region - worker) / options.threads);
+    const workerStart = start + 2n * BigInt(worker);
+
+    jobs.push(
+      pool.call.scanForProbablePrime([
+        workerStart.toString(),
+        count,
+        step,
+        options.rounds,
+      ]),
+    );
+  }
+
+  let winner: ScanResult | null;
+  try {
+    winner = await waitForFirstPrime(jobs);
+    if (winner !== null) {
+      for (const job of jobs) job.reject();
     }
 
-    // Move start forward by WINDOW odd candidates (i.e., +2*WINDOW)
-    windowStartOdd += 2n * BigInt(WINDOW);
+    const results = await Promise.all(jobs);
+    const tested = results.reduce((total, result) => total + result.tested, 0);
+    const cancelled = results.some((result) => result.aborted);
+    const elapsed = performance.now() - started;
+
+    console.log(`threads:    ${options.threads}`);
+    console.log(`bits:       ${options.bits}`);
+    console.log(`region:     ${options.region.toLocaleString()} odd candidates`);
+    console.log(`workers:    ${workerCount}`);
+    console.log(`tested:     ${tested.toLocaleString()}`);
+    console.log(`prime:      ${winner?.prime ?? "not found"}`);
+    console.log(`cancelled:  ${cancelled ? "yes" : "no"}`);
+    console.log(`elapsed:    ${elapsed.toFixed(0)} ms`);
+  } catch (error) {
+    for (const job of jobs) job.reject();
+    await Promise.allSettled(jobs);
+    throw error;
   }
 }
 
 if (isMain) {
-  main().finally(shutdown);
+  await main();
 }

@@ -33,46 +33,38 @@ head:
 ---
 
 import PoolCycle from "../../components/PoolCycle.astro";
-import ImpactBars from "../../components/ImpactBars.astro";
+import QueueImpact from "../../components/QueueImpact.astro";
 import { Code } from "@astrojs/starlight/components";
+import { getCode } from "../../lib/code-snippets";
 
-export const quickStart = `import { createPool, isMain } from "knitting";
+export const homeUrl = (path) => `${import.meta.env.BASE_URL.replace(/\/$/, "")}${path}`;
 
-export const square = (value: number) => value * value;
-export const greet = (name: string) => \`hello \${name}\`;
+export const quickStart = getCode("home_hono_compress.ts");
 
-if (isMain) {
-  using pool = createPool({ threads: 2 })({ square, greet });
-
-  const [four, message] = await Promise.all([
-    pool.call.square(2),
-    pool.call.greet("knitting"),
-  ]);
-
-  console.log({ four, message });
-}`;
-
-export const install = `npm install knitting
-deno add --npm knitting`;
+export const install = `npm install hono @hono/node-server knitting
+deno add --npm hono @hono/node-server knitting
+bun add hono @hono/node-server knitting`;
 
 <div data-knit-home-marker hidden></div>
 
 <section class="kh-hero" aria-labelledby="kh-hero-title">
+  <img
+    class="kh-hero-mascot"
+    src={`${import.meta.env.BASE_URL}brand/knitting-mascot.png`}
+    alt=""
+    aria-hidden="true"
+    decoding="async"
+    width="1024"
+    height="1024"
+  />
   <div class="kh-hero-grid">
     <div class="kh-hero-copy" data-reveal>
-      <h1 id="kh-hero-title">
-        Move JavaScript<br />
-        <span>off the main thread.</span>
-      </h1>
-    </div>
-
-    <div class="kh-hero-visual" data-reveal>
-      <PoolCycle caption="One call site, whether work runs in a thread or an isolated process." />
+      <h1 id="kh-hero-title">Move JavaScript<br /> <span>off the main thread.</span></h1>
     </div>
 
     <div class="kh-hero-bottom" data-reveal>
       <div class="kh-actions">
-        <a class="kh-button kh-button--primary kh-button--cloud" href="/start/quick-start/">
+        <a class="kh-button kh-button--primary kh-button--cloud" href={homeUrl("/start/quick-start/")}>
           <img
             class="kh-cloud"
             src={`${import.meta.env.BASE_URL}brand/wool-cloud.png`}
@@ -91,41 +83,42 @@ deno add --npm knitting`;
       <div class="kh-install-line" aria-label="Install Knitting with npm">
         <span aria-hidden="true">$</span>
         <code>npm install knitting</code>
-        <span>npm + JSR</span>
+        <span>Node · Deno · Bun</span>
       </div>
     </div>
 
+    <div class="kh-hero-visual" data-reveal>
+      <PoolCycle caption="Call your functions in a thread or a separate process." />
+    </div>
   </div>
 </section>
 
 <section class="kh-proof" aria-label="Project highlights" data-reveal>
   <div>
-    <strong>0</strong>
-    <span>runtime dependencies</span>
+    <strong>Zero dependencies</strong>
+    <span>Nothing else to install</span>
   </div>
   <div>
-    <strong>1</strong>
-    <span>typed API</span>
+    <strong>Typed calls</strong>
+    <span>Typed arguments and results</span>
   </div>
   <div>
-    <strong>2</strong>
-    <span>worker boundaries</span>
+    <strong>Threads or processes</strong>
+    <span>The same API for both</span>
   </div>
   <div>
-    <strong>3</strong>
-    <span>JavaScript runtimes</span>
+    <strong>Open source</strong>
+    <span>Apache-2.0 licensed</span>
   </div>
 </section>
 
 <div class="kh-main">
   <section class="kh-section kh-start" data-reveal aria-labelledby="kh-start-title">
     <div class="kh-section-intro kh-section-intro--center">
-      <p class="kh-kicker">A simpler worker API</p>
-      <h2 id="kh-start-title">From an exported function to a worker call.</h2>
-      <p>
-        No worker entry point, message router, or response plumbing. Define tasks
-        at the module level, pass them to a pool, and keep the call site typed.
-      </p>
+      <p class="kh-kicker">Quick start</p>
+      <h2 id="kh-start-title">Run a function in a worker.</h2>
+      <p>This Hono route compresses HTML in a worker and returns the compressed size.</p>
+      <p>You can also try thread pools on <a href={homeUrl("/guides/andromeda/")}>Andromeda</a>, where support is still experimental.</p>
     </div>
 
     <div class="kh-start-grid">
@@ -143,22 +136,22 @@ deno add --npm knitting`;
         <li>
           <span>01</span>
           <div>
-            <strong>Export the task</strong>
-            <p>Plain functions are tasks. Add <code>task()</code> only when you need options.</p>
+            <strong>Export your function</strong>
+            <p>Define and export the function at the top level of its module.</p>
           </div>
         </li>
         <li>
           <span>02</span>
           <div>
             <strong>Create the pool</strong>
-            <p>Choose threads for speed or processes for stronger isolation.</p>
+            <p>Create a pool with one worker and pass it your function.</p>
           </div>
         </li>
         <li>
           <span>03</span>
           <div>
-            <strong>Call it like any function</strong>
-            <p>The result is a promise. Errors come back as standard <code>Error</code> objects.</p>
+            <strong>Call it from your route</strong>
+            <p>Use <code>await</code> to get the result, just like any other async call.</p>
           </div>
         </li>
       </ol>
@@ -167,10 +160,10 @@ deno add --npm knitting`;
     <div class="kh-install-box">
       <div>
         <span>Install</span>
-        <strong>Ready in one dependency.</strong>
+        <strong>Install the example’s dependencies.</strong>
       </div>
       <pre class="kh-install-code"><code>{install}</code></pre>
-      <a href="/start/installation/">Installation details <span aria-hidden="true">→</span></a>
+      <a href={homeUrl("/start/installation/")}>Installation details <span aria-hidden="true">→</span></a>
     </div>
   </section>
 
@@ -180,211 +173,126 @@ deno add --npm knitting`;
     aria-labelledby="kh-server-proof-title"
   >
     <div class="kh-server-proof-copy">
-      <p class="kh-kicker">The effect at the server edge</p>
+      <p class="kh-kicker">In a busy server</p>
       <h2 id="kh-server-proof-title">Keep fast routes fast.</h2>
-      <p>
-        On the Hono example’s mixed workload, React SSR and JWT leave the
-        request thread. <code>/ping</code> never enters the pool, yet handles
-        201% more requests under saturation because it no longer waits behind
-        expensive routes.
-      </p>
+      <p>When the main thread is busy, even a simple <code>/ping</code> has to wait. Moving React rendering and JWT signing into one worker leaves more room for the main thread to respond.</p>
+      <p>In this Hono benchmark, <code>/ping</code> responded sooner at the same load, with roughly the same CPU use. The ping route itself stayed on the main thread.</p>
+      <p class="kh-benchmark-caveat">Measured in 15-second runs with one worker. Results depend on your workload and pool size.</p>
       <div class="kh-server-proof-links">
-        <a href="/examples/data_transforms/rendering_output/hono_server/">
+        <a href={homeUrl("/examples/servers/hono_server/")}>
           View the Hono server <span aria-hidden="true">→</span>
         </a>
-        <a href="/guides/multi-threading/">
-          Tune multi-worker pools <span aria-hidden="true">→</span>
-        </a>
-        <a href="/documents/hono-16core-benchmark.md">
-          Read the 16-core results <span aria-hidden="true">→</span>
+        <a href={homeUrl("/documents/hono-16core-benchmark.md")}>
+          See the measurements <span aria-hidden="true">→</span>
         </a>
       </div>
     </div>
-    <ImpactBars />
+    <QueueImpact />
   </section>
 
   <section class="kh-section kh-features" data-reveal aria-labelledby="kh-features-title">
-    <img
-      class="kh-mascot-watermark"
-      src={`${import.meta.env.BASE_URL}brand/knitting-mascot.png`}
-      alt=""
-      aria-hidden="true"
-      loading="lazy"
-      decoding="async"
-      width="1024"
-      height="1024"
-    />
     <div class="kh-section-intro">
-      <p class="kh-kicker">The mechanics around the call</p>
-      <h2 id="kh-features-title">The boundary is part of the API.</h2>
-      <p>
-        Knitting handles the mechanics that make workers useful in production:
-        moving data, isolating code, scheduling work, and preserving stack traces
-        and error causes.
-      </p>
+      <p class="kh-kicker">Working with a pool</p>
+      <h2 id="kh-features-title">Pass data, handle errors, and debug.</h2>
     </div>
 
     <div class="kh-feature-grid kh-grid">
       <article class="kh-feature kh-feature--wide">
         <div class="kh-feature-icon" aria-hidden="true">↔</div>
-        <p class="kh-feature-label">Fast by construction</p>
-        <h3>Move the work, not all the bytes.</h3>
-        <p>
-          Pass typed payloads and promises. Move large buffers through zero-copy
-          handles. Set timeouts, cancel with abort signals, and keep stack traces
-          and error causes intact. Knitting's native work stealing lets
-          compatible multi-worker pools claim tasks from a shared submit region
-          instead of waiting in private request lanes.
-        </p>
+        <p class="kh-feature-label">Large inputs</p>
+        <h3>Share large buffers.</h3>
+        <p>Pass ordinary JavaScript values directly. For large buffers, shared memory and buffer references can reduce copying. The available options depend on your worker type.</p>
         <ul class="kh-chip-list" aria-label="Call and payload features">
           <li>Promise inputs</li>
           <li>SharedArrayBuffer</li>
           <li>ProcessSharedBuffer</li>
           <li>BufferReference</li>
-          <li>Task timeouts</li>
-          <li>Abort signals</li>
           <li>Typed arrays</li>
-          <li>Error cause chains</li>
-          <li>Native work stealing</li>
         </ul>
-        <a href="/guides/payloads/">Explore payloads <span aria-hidden="true">→</span></a>
+        <a href={homeUrl("/guides/payloads/")}>Passing data <span aria-hidden="true">→</span></a>
       </article>
 
       <article class="kh-feature kh-feature--dark">
         <div class="kh-feature-icon" aria-hidden="true">⌁</div>
-        <p class="kh-feature-label">Choose your boundary</p>
-        <h3>Use threads for trusted work. Use processes for isolation.</h3>
-        <p>
-          The same task API works with runtime threads or isolated processes.
-          Combine <code>importTask</code> with permissions, bubblewrap, or a container.
-        </p>
+        <p class="kh-feature-label">Isolation</p>
+        <h3>Run workers in separate processes.</h3>
+        <p>Threads are the default. For stronger isolation, use a separate process inside a sandbox or container. Use <code>importTask</code> to load the task’s code only in the worker.</p>
         <div class="kh-boundary-dial" aria-label="Isolation options from thread to sandbox">
           <span>thread</span><i></i><span>process</span><i></i><span>sandbox</span>
         </div>
-        <a href="/guides/process-workers/">Choose a boundary <span aria-hidden="true">→</span></a>
+        <a href={homeUrl("/guides/process-workers/")}>Process workers <span aria-hidden="true">→</span></a>
       </article>
 
       <article class="kh-feature">
         <div class="kh-feature-icon" aria-hidden="true">✓</div>
-        <p class="kh-feature-label">Failure is part of the API</p>
-        <h3>Deadlines, cancellation, and clear errors.</h3>
-        <p>
-          Limit cooperative work with timeouts and abort signals, or hard-kill
-          runaway CPU work after a deadline. Stack traces and error causes come back intact.
-        </p>
-        <a href="/guides/defining-tasks/">Define resilient tasks <span aria-hidden="true">→</span></a>
+        <p class="kh-feature-label">Errors and timeouts</p>
+        <h3>Stop tasks that take too long.</h3>
+        <p>Use timeouts and abort signals for tasks that support cancellation. For stuck CPU work, set a deadline that terminates the worker. Errors keep their stack traces and causes.</p>
+        <a href={homeUrl("/guides/defining-tasks/")}>Tasks and timeouts <span aria-hidden="true">→</span></a>
       </article>
 
       <article class="kh-feature">
         <div class="kh-feature-icon" aria-hidden="true">◎</div>
-        <p class="kh-feature-label">Observable on demand</p>
-        <h3>Quiet by default. Detailed when debugging.</h3>
-        <p>
-          Enable only the diagnostics you need: host setup, imports, lifecycle,
-          signals, or global state. When disabled, the logger is not imported.
-        </p>
-        <a href="/guides/creating-pools/">Configure a pool <span aria-hidden="true">→</span></a>
+        <p class="kh-feature-label">Debugging</p>
+        <h3>See what your workers are doing.</h3>
+        <p>Turn on logs for worker setup, imports, and task activity. Choose which diagnostics to enable; the logger stays unloaded when they’re off.</p>
+        <a href={homeUrl("/guides/creating-pools/")}>Configure a pool <span aria-hidden="true">→</span></a>
       </article>
 
       <article class="kh-feature">
         <div class="kh-feature-icon" aria-hidden="true">⇄</div>
-        <p class="kh-feature-label">Adaptive scheduling</p>
-        <h3 id="kh-stealing-title">Keep every worker moving.</h3>
-        <p>
-          Compatible multi-worker pools share one submit region, so workers can
-          claim tasks as they become free. On Node.js and Bun thread pools, the
-          host doorbell can wait for completions instead of repeatedly polling.
-          The task API stays the same.
-        </p>
+        <p class="kh-feature-label">Scheduling</p>
+        <h3 id="kh-stealing-title">Keep available workers busy.</h3>
+        <p>With work stealing, available workers can pick up waiting tasks instead of leaving them queued behind a busy worker. Knitting enables this automatically for compatible pools.</p>
         <ul class="kh-chip-list" aria-label="Adaptive scheduling features">
           <li>Work stealing</li>
-          <li>Shared submit region</li>
-          <li>Private return lanes</li>
-          <li>Host doorbell</li>
         </ul>
-        <a href="https://github.com/mimiMonads/knitting/blob/main/STEALING_DOORBELL.md">
-          Explore scheduling details <span aria-hidden="true">→</span>
+        <a href={homeUrl("/guides/work-stealing/")}>
+          How scheduling works <span aria-hidden="true">→</span>
         </a>
       </article>
     </div>
   </section>
 
-  <div class="kh-main-rule" aria-hidden="true"></div>
-
-  <section id="benchmarks" class="kh-benchmark" data-reveal aria-labelledby="kh-benchmark-title">
-    <div class="kh-benchmark-head">
-      <div>
-        <p class="kh-kicker">Measured in practice</p>
-        <h2 id="kh-benchmark-title">Low-latency IPC.</h2>
-      </div>
-      <p>
-        These measurements come from the public benchmark suite. Review the
-        methodology, hardware, and raw results before comparing workloads.
-      </p>
-    </div>
-
-    <div class="kh-metric-grid kh-grid">
-      <article>
-        <span>Scheduling roundtrip</span>
-        <strong>538<small>ns</small></strong>
-        <p>Node · 53.8 μs per batch of 100</p>
-      </article>
-      <article>
-        <span>Zero-copy roundtrip</span>
-        <strong>816<small>ns</small></strong>
-        <p>Node · 81.6 μs per batch of 100</p>
-      </article>
-      <article>
-        <span>1 MiB copied round-trip</span>
-        <strong>313<small>μs</small></strong>
-        <p>Bun · 31.3 ms per batch of 100</p>
-      </article>
-    </div>
-
-    <div class="kh-benchmark-links">
-      <a class="kh-button kh-button--primary" href="/benchmarks/introduction/">
-        Read the benchmarks <span aria-hidden="true">→</span>
-      </a>
-      <a href="https://github.com/mimiMonads/knitting-vs-tokio-bench">Open the source suite →</a>
-    </div>
-  </section>
 
   <section class="kh-section" data-reveal aria-labelledby="kh-use-title">
     <div class="kh-section-intro kh-section-intro--split">
       <div>
-        <p class="kh-kicker">Keep the function. Move the heavy work.</p>
-        <h2 id="kh-use-title">Keep CPU-heavy work off the event loop.</h2>
+        <p class="kh-kicker">Examples</p>
+        <h2 id="kh-use-title">Rendering, hashing, and compression.</h2>
       </div>
-      <p>
-        Knitting is the middle ground between running CPU-heavy work on the
-        request thread and moving it to a separate service. Keep the work in your
-        application without blocking the event loop.
-      </p>
+      <p>Each example includes code and measurements. Workers are useful for CPU work; they usually won’t help code that mostly waits for a database or network response.</p>
     </div>
 
     <div class="kh-use-grid kh-grid">
-      <a href="/examples/data_transforms/rendering_output/react_ssr/">
+      <a href={homeUrl("/examples/rendering/react_ssr/")}>
         <span>Rendering</span>
         <strong>React SSR</strong>
-        <p>Render components away from the request thread.</p>
+        <p>Render React components in a worker.</p>
         <i aria-hidden="true">→</i>
       </a>
-      <a href="/examples/data_transforms/validation/jwt_revalidation/">
+      <a href={homeUrl("/examples/validation/jwt_revalidation/")}>
         <span>Security</span>
         <strong>JWT revalidation</strong>
         <p>Verify and reissue tokens with Web Crypto.</p>
         <i aria-hidden="true">→</i>
       </a>
-      <a href="/examples/data_transforms/validation/salt_hashing/">
+      <a href={homeUrl("/examples/validation/salt_hashing/")}>
         <span>Cryptography</span>
         <strong>Password hashing</strong>
         <p>Run PBKDF2 without stalling other requests.</p>
         <i aria-hidden="true">→</i>
       </a>
-      <a href="/examples/data_transforms/rendering_output/markdown_to_html/">
+      <a href={homeUrl("/examples/rendering/markdown_to_html/")}>
         <span>Pipelines</span>
         <strong>Markdown + Brotli</strong>
-        <p>Transform and compress in the same worker call.</p>
+        <p>Convert Markdown to HTML, then compress it.</p>
+        <i aria-hidden="true">→</i>
+      </a>
+      <a href="https://github.com/mimiMonads/knit-tex">
+        <span>Typesetting</span>
+        <strong>TeX to PDF</strong>
+        <p>In one four-core benchmark, warm Pride and Prejudice runs finished 46% faster on Node and 43% faster on Bun with four workers.</p>
         <i aria-hidden="true">→</i>
       </a>
     </div>
@@ -392,44 +300,33 @@ deno add --npm knitting`;
 
   <section class="kh-quality" data-reveal aria-labelledby="kh-quality-title">
     <div class="kh-quality-copy">
-      <p class="kh-kicker">Tested on every push</p>
-      <h2 id="kh-quality-title">The hard parts are the tested parts.</h2>
-      <p>Tests cover what is easy to get wrong: shared-memory transport, work stealing, deadlines, payload limits, permissions, and the published package itself. All of it runs on Node.js, Deno, and Bun, on Linux, macOS, and Windows.</p>
+      <p class="kh-kicker">Benchmarks and tests</p>
+      <h2 id="kh-quality-title">See how it’s tested.</h2>
+      <p>The benchmarks include the setup and methodology. The tests cover shared memory, timeouts, permissions, and worker failures. Found a bug? Open an issue.</p>
       <div class="kh-quality-links">
+        <a href={homeUrl("/benchmarks/introduction/")}>See the performance results <span aria-hidden="true">→</span></a>
         <a href="https://github.com/mimiMonads/knitting/tree/main/test">Browse the tests</a>
-        <a href="https://github.com/mimiMonads/knitting/actions/workflows/test.yml">View CI <span aria-hidden="true">→</span></a>
+        <a href="https://github.com/mimiMonads/knitting/issues">Report an issue</a>
+        <a href={homeUrl("/llms.txt")}>Docs for AI tools</a>
       </div>
-    </div>
-    <div class="kh-quality-metrics" aria-label="Testing metrics">
-      <div><strong>400+</strong><span>tests in the suite</span></div>
-      <div><strong>90%</strong><span>line coverage floor on Node</span></div>
-      <div><strong>3</strong><span>operating systems in CI</span></div>
     </div>
   </section>
 
   <section class="kh-final" data-reveal aria-labelledby="kh-final-title">
-    <p class="kh-kicker">Your hot path can stay a function.</p>
-    <h2 id="kh-final-title">Give it a better place to run.</h2>
-    <p>Start with one exported task. Add stronger isolation only when you need it.</p>
+    <h2 id="kh-final-title">Pick one slow function.</h2>
+    <p>Move it into a worker and compare how your app responds.</p>
     <div class="kh-actions">
-      <a class="kh-button kh-button--primary" href="/start/quick-start/">
+      <a class="kh-button kh-button--primary" href={homeUrl("/start/quick-start/")}>
         Create your first pool <span aria-hidden="true">→</span>
       </a>
-      <a class="kh-button kh-button--secondary" href="/extras/why/">Why Knitting?</a>
+      <a class="kh-button kh-button--secondary" href={homeUrl("/extras/why/")}>Why Knitting?</a>
     </div>
   </section>
 </div>
 
 <section hidden aria-label="Notes for AI agents">
-  <p>
-    Knitting ships machine-readable docs at <a href="/llms.txt">/llms.txt</a>
-    and <a href="/llms-full.txt">/llms-full.txt</a>. Read them before generating code.
-  </p>
-  <p>
-    Workers re-import the task module, including its top-level imports. Keep task
-    modules lean, export every task, and use <code>importTask</code> when code
-    should load only inside the worker.
-  </p>
+  <p>Knitting ships machine-readable docs at <a href={homeUrl("/llms.txt")}>/llms.txt</a> and <a href={homeUrl("/llms-full.txt")}>/llms-full.txt</a>. Read them before generating code.</p>
+  <p>Workers re-import the task module, including its top-level imports. Keep task modules lean, export every task, and use <code>importTask</code> when code should load only inside the worker.</p>
 </section>
 
 <style is:global>{`
@@ -446,10 +343,8 @@ html:has([data-knit-home-marker]) {
   --kh-code-ink: var(--kh-paper);
   --kh-code-muted: var(--kh-muted);
   --kh-button-ink: var(--kh-night);
-  --kh-cloud-ink: var(--kh-night);
   --kh-line: color-mix(in srgb, var(--kh-muted) 24%, transparent);
   --kh-night-line: var(--kh-line);
-  overflow-x: clip;
   background: var(--kh-night);
 }
 
@@ -465,7 +360,6 @@ html[data-theme="light"]:has([data-knit-home-marker]) {
   --kh-code-ink: var(--kh-paper);
   --kh-code-muted: #8a6852;
   --kh-button-ink: #fff1d6;
-  --kh-cloud-ink: var(--kh-paper);
   --kh-line: color-mix(in srgb, var(--kh-ink) 18%, transparent);
   --kh-night-line: var(--kh-line);
 }
@@ -476,9 +370,14 @@ html:has([data-knit-home-marker]) main {
 }
 
 html:has([data-knit-home-marker]) .header {
-  border-color: transparent;
+  border-bottom: 0;
   background: var(--kh-night);
+  box-shadow: 0 1px 0 var(--kh-night);
   color: var(--kh-paper);
+}
+
+html:has([data-knit-home-marker]) .header .social-icons::after {
+  content: none;
 }
 
 html:has([data-knit-home-marker]) .header .site-title,
@@ -555,6 +454,7 @@ html:has([data-knit-home-marker]) .kh-hero {
   position: relative;
   isolation: isolate;
   overflow: hidden;
+  --kh-mascot-size: clamp(21rem, 38vw, 34rem);
   background: var(--kh-night);
   color: var(--kh-paper);
 }
@@ -565,6 +465,27 @@ html:has([data-knit-home-marker]) .kh-hero::before {
 
 html:has([data-knit-home-marker]) .kh-hero::after {
   content: none;
+}
+
+/* Lamby is a quiet backdrop to the opening statement, matching the original
+   hero composition without competing with its text or the pool visual. */
+html:has([data-knit-home-marker]) .kh-hero-mascot {
+  position: absolute;
+  z-index: -1;
+  width: var(--kh-mascot-size);
+  height: auto;
+  top: clamp(0.75rem, 2vw, 2rem);
+  /* Keep Lamby attached to the centered terminal on wide viewports. The
+     fixed overhang lets the body sit behind its right edge without drifting
+     toward the side of the screen as the viewport grows. */
+  right: max(1rem, calc((100vw - 66rem) / 2 - 8rem));
+  margin: 0;
+  opacity: 0.13;
+  transform: rotate(4deg);
+  filter: saturate(0.82) contrast(1.04);
+  mask-image: linear-gradient(to bottom, black 58%, transparent 100%);
+  pointer-events: none;
+  user-select: none;
 }
 
 html:has([data-knit-home-marker]) .kh-hero-grid,
@@ -590,6 +511,7 @@ html:has([data-knit-home-marker]) .kh-hero-grid {
 }
 
 html:has([data-knit-home-marker]) .kh-hero-copy {
+  grid-row: 1;
   max-width: 64rem;
   min-width: 0;
   display: flex;
@@ -625,10 +547,12 @@ html:has([data-knit-home-marker]) .kh-hero-lede {
 html:has([data-knit-home-marker]) .kh-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.75rem;
 }
 
 html:has([data-knit-home-marker]) .kh-hero-bottom {
+  grid-row: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -637,17 +561,19 @@ html:has([data-knit-home-marker]) .kh-hero-bottom {
 
 html:has([data-knit-home-marker]) .kh-button {
   min-height: 3rem;
+  margin: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.7rem;
-  padding: 0.72rem 1.2rem;
+  padding: 0.85rem 1.35rem;
   border: 1px solid var(--kh-line);
   border-radius: 999px;
   color: var(--kh-paper);
   font-size: 0.92rem;
   font-weight: 720;
-  line-height: 1;
+  line-height: 1.25;
+  text-align: center;
   text-decoration: none;
   transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
 }
@@ -661,61 +587,54 @@ html:has([data-knit-home-marker]) .kh-button--primary {
   border-color: var(--kh-accent);
   background: var(--kh-accent);
   color: var(--kh-button-ink);
-  box-shadow: 0 0 2.5rem color-mix(in srgb, var(--kh-accent) 13%, transparent);
 }
 
 html:has([data-knit-home-marker]) .kh-button--primary:hover {
   background: color-mix(in srgb, var(--kh-accent) 82%, var(--kh-paper));
 }
 
+/* Keep the wool artwork proportional and its label level. Centering the
+   action row lets the softer silhouette sit beside a compact outline button. */
 html:has([data-knit-home-marker]) .kh-hero .kh-button--cloud {
   position: relative;
   isolation: isolate;
-  width: 13.75rem;
-  min-height: 5.25rem;
-  padding: 0.9rem 2rem 0.72rem;
+  flex-shrink: 0;
+  width: 11rem;
+  max-width: 100%;
+  min-height: 0;
+  aspect-ratio: 1200 / 457;
+  padding: 1rem 1.4rem;
   border: 0;
-  border-radius: 0;
-  overflow: visible;
-  background: none;
-  box-shadow: none;
-  color: var(--kh-cloud-ink);
+  background: transparent;
+  color: #2b1d14;
 }
 
-html:has([data-knit-home-marker]) .kh-button--cloud .kh-cloud {
+html:has([data-knit-home-marker]) .kh-cloud {
   position: absolute;
   z-index: -1;
   inset: 0;
   width: 100%;
   height: 100%;
   margin: 0;
-  object-fit: fill;
-  overflow: visible;
-  filter: drop-shadow(0 0.45rem 0.8rem color-mix(in srgb, var(--kh-night) 34%, transparent));
-  transition: transform 180ms ease, filter 180ms ease;
+  object-fit: contain;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 3px rgb(22 12 8 / 12%));
 }
 
 html:has([data-knit-home-marker]) .kh-cloud-label {
-  position: relative;
-  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 0.6rem;
-  transform: rotate(-1deg);
-}
-
-html:has([data-knit-home-marker]) .kh-hero .kh-button--cloud:hover {
-  border-color: transparent;
-  background: none;
-}
-
-html:has([data-knit-home-marker]) .kh-button--cloud:hover .kh-cloud {
-  transform: translateY(-0.12rem) rotate(-1deg) scale(1.02);
-  filter: drop-shadow(0 0.65rem 1rem color-mix(in srgb, var(--kh-night) 42%, transparent));
 }
 
 html:has([data-knit-home-marker]) .kh-button--secondary {
-  background: color-mix(in srgb, var(--kh-surface) 64%, transparent);
+  border-color: color-mix(in srgb, var(--kh-paper) 32%, var(--kh-night));
+  background: transparent;
+}
+
+html:has([data-knit-home-marker]) .kh-button--secondary:hover {
+  border-color: var(--kh-accent);
+  background: var(--kh-surface);
 }
 
 html:has([data-knit-home-marker]) .kh-install-line {
@@ -748,6 +667,7 @@ html:has([data-knit-home-marker]) .kh-install-line > span:last-child {
 
 /* Reintroduced pool hero, reduced to the same five-color system. */
 html:has([data-knit-home-marker]) .kh-hero-visual {
+  grid-row: 3;
   min-width: 0;
   overflow: visible;
   border: 0;
@@ -822,7 +742,8 @@ html:has([data-knit-home-marker]) .kh-proof {
 html:has([data-knit-home-marker]) .kh-proof > div {
   min-width: 0;
   display: flex;
-  align-items: baseline;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 0.7rem;
   margin-top: 0;
   padding: 1.3rem 1.4rem;
@@ -833,7 +754,7 @@ html:has([data-knit-home-marker]) .kh-proof > div {
 
 html:has([data-knit-home-marker]) .kh-proof strong {
   color: var(--kh-ink);
-  font-size: 1.7rem;
+  font-size: 1rem;
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
@@ -899,8 +820,6 @@ html:has([data-knit-home-marker]) .kh-main-rule {
 html:has([data-knit-home-marker]) .kh-features {
   position: relative;
   isolation: isolate;
-  --kh-mascot-size: clamp(18rem, 35vw, 30rem);
-  --kh-mascot-right: clamp(0rem, 2vw, 2rem);
 }
 
 html:has([data-knit-home-marker]) .kh-features::before {
@@ -910,7 +829,7 @@ html:has([data-knit-home-marker]) .kh-features::before {
   width: min(44rem, 72vw);
   height: min(44rem, 72vw);
   top: -8rem;
-  right: clamp(-10rem, -7vw, -3rem);
+  right: 0;
   border-radius: 50%;
   background: radial-gradient(
     circle,
@@ -918,27 +837,6 @@ html:has([data-knit-home-marker]) .kh-features::before {
     transparent 68%
   );
   pointer-events: none;
-}
-
-html:has([data-knit-home-marker]) .kh-mascot-watermark {
-  position: absolute;
-  z-index: -1;
-  width: var(--kh-mascot-size);
-  height: auto;
-  top: clamp(1.5rem, 4vw, 3.5rem);
-  right: var(--kh-mascot-right);
-  margin: 0;
-  opacity: 0.12;
-  transform: rotate(4deg);
-  filter: saturate(0.82) contrast(1.04);
-  mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
-  pointer-events: none;
-  user-select: none;
-}
-
-html:has([data-knit-home-marker]) .kh-features > :not(.kh-mascot-watermark) {
-  position: relative;
-  z-index: 1;
 }
 
 html:has([data-knit-home-marker]) .kh-section-intro {
@@ -1191,8 +1089,6 @@ html:has([data-knit-home-marker]) .kh-feature-grid {
   column-gap: clamp(2.5rem, 7vw, 7rem);
 }
 
-/* Leave a clean opening wherever Lamby sits so the divider cannot read as a
-   seam between the head and body through the transparent artwork. */
 html:has([data-knit-home-marker]) .kh-feature-grid::before {
   content: "";
   position: absolute;
@@ -1200,13 +1096,7 @@ html:has([data-knit-home-marker]) .kh-feature-grid::before {
   right: 0;
   left: 0;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    var(--kh-line) 0
-      calc(100% - var(--kh-mascot-right) - var(--kh-mascot-size) - 0.75rem),
-    transparent calc(100% - var(--kh-mascot-right) - var(--kh-mascot-size) - 0.75rem)
-      100%
-  );
+  background: var(--kh-line);
   pointer-events: none;
 }
 
@@ -1267,6 +1157,7 @@ html:has([data-knit-home-marker]) .kh-chip-list {
 }
 
 html:has([data-knit-home-marker]) .kh-chip-list li {
+  margin: 0;
   padding: 0;
   color: var(--kh-muted);
   font-family: var(--sl-font-mono);
@@ -1307,9 +1198,7 @@ html:has([data-knit-home-marker]) .kh-benchmark::before {
   content: "";
   position: absolute;
   z-index: -1;
-  inset: 0 50%;
-  width: 100vw;
-  transform: translateX(-50%);
+  inset: 0;
   background:
     radial-gradient(circle at 80% 15%, color-mix(in srgb, var(--kh-accent) 13%, transparent), transparent 24rem),
     var(--kh-night);
@@ -1411,6 +1300,11 @@ html:has([data-knit-home-marker]) .kh-server-proof-copy > p:not(.kh-kicker) {
   line-height: 1.7;
 }
 
+html:has([data-knit-home-marker]) .kh-server-proof-copy > .kh-benchmark-caveat {
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
 html:has([data-knit-home-marker]) .kh-server-proof code {
   color: var(--kh-paper);
 }
@@ -1498,7 +1392,7 @@ html:has([data-knit-home-marker]) .kh-use-grid > a:hover i {
 
 html:has([data-knit-home-marker]) .kh-quality {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(20rem, 0.85fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: clamp(2rem, 5vw, 4.5rem);
   align-items: center;
   margin-bottom: clamp(3rem, 6vw, 5rem);
@@ -1544,36 +1438,110 @@ html:has([data-knit-home-marker]) .kh-quality-links a:hover {
   text-underline-offset: 0.2em;
 }
 
-html:has([data-knit-home-marker]) .kh-quality-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-top: 1px solid var(--kh-night-line);
-  border-left: 1px solid var(--kh-night-line);
+html:has([data-knit-home-marker]) .kh-test-matrix {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--kh-night-line);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--kh-surface) 50%, transparent);
 }
 
-html:has([data-knit-home-marker]) .kh-quality-metrics > div {
+html:has([data-knit-home-marker]) .kh-test-matrix-head {
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
   justify-content: space-between;
-  min-height: 9.75rem;
-  padding: 1.15rem 0.9rem;
-  border-right: 1px solid var(--kh-night-line);
+  gap: 1rem;
+  padding: 0.9rem 1rem;
   border-bottom: 1px solid var(--kh-night-line);
-}
-
-html:has([data-knit-home-marker]) .kh-quality-metrics strong {
   color: var(--kh-paper);
   font-family: var(--sl-font-mono);
-  font-size: clamp(1.8rem, 3vw, 2.5rem);
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
+  font-size: 0.75rem;
+  font-weight: 750;
 }
 
-html:has([data-knit-home-marker]) .kh-quality-metrics span {
+html:has([data-knit-home-marker]) .kh-test-matrix-head span:last-child {
   color: var(--kh-muted);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+html:has([data-knit-home-marker]) .kh-test-matrix-scroll {
+  overflow-x: auto;
+}
+
+html:has([data-knit-home-marker]) .kh-test-matrix table {
+  display: table;
+  width: 100%;
+  min-width: 23rem;
+  margin: 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+  color: var(--kh-paper);
+  font-variant-numeric: tabular-nums;
+}
+
+html:has([data-knit-home-marker]) .kh-test-matrix caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+html:has([data-knit-home-marker]) .kh-test-matrix th,
+html:has([data-knit-home-marker]) .kh-test-matrix td {
+  margin: 0;
+  padding: 0.75rem 0.6rem;
+  border-right: 1px solid var(--kh-night-line);
+  border-bottom: 1px solid var(--kh-night-line);
+  text-align: center;
+  white-space: nowrap;
+}
+
+html:has([data-knit-home-marker]) .kh-test-matrix tr > :last-child {
+  border-right: 0;
+}
+
+html:has([data-knit-home-marker]) .kh-test-matrix tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+html:has([data-knit-home-marker]) .kh-test-matrix thead th {
+  color: var(--kh-muted);
+  font-family: var(--sl-font-mono);
+  font-size: 0.68rem;
   font-weight: 700;
-  line-height: 1.35;
+}
+
+html:has([data-knit-home-marker]) .kh-test-matrix th:first-child {
+  width: 31%;
+  padding-left: 1rem;
+  text-align: left;
+}
+
+html:has([data-knit-home-marker]) .kh-test-matrix tbody th {
+  color: var(--kh-paper);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+html:has([data-knit-home-marker]) .kh-test-pass {
+  color: #57d68d;
+  font-family: var(--sl-font-mono);
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+html:has([data-knit-home-marker]) .kh-test-pass small {
+  color: var(--kh-muted);
+  font-size: 0.65rem;
+  font-weight: 650;
+  letter-spacing: 0;
 }
 
 html:has([data-knit-home-marker]) .kh-final {
@@ -1684,14 +1652,14 @@ html:has([data-knit-home-marker]) button:focus-visible {
     padding-block: 4rem;
   }
 
-  html:has([data-knit-home-marker]) .kh-features {
-    --kh-mascot-size: clamp(15rem, 58vw, 21rem);
-    --kh-mascot-right: 0rem;
+  html:has([data-knit-home-marker]) .kh-hero {
+    --kh-mascot-size: clamp(18rem, 70vw, 22rem);
   }
 
-  html:has([data-knit-home-marker]) .kh-mascot-watermark {
-    top: 2.5rem;
-    opacity: 0.08;
+  html:has([data-knit-home-marker]) .kh-hero-mascot {
+    top: 0.75rem;
+    right: 0.5rem;
+    opacity: 0.075;
   }
 
   html:has([data-knit-home-marker]) .kh-section-intro {
@@ -1746,13 +1714,13 @@ html:has([data-knit-home-marker]) button:focus-visible {
     padding: 2rem 1.35rem;
   }
 
-  html:has([data-knit-home-marker]) .kh-quality-metrics > div {
-    min-height: 8rem;
-    padding: 0.9rem 0.7rem;
+  html:has([data-knit-home-marker]) .kh-test-matrix-head {
+    padding-inline: 0.85rem;
   }
 
-  html:has([data-knit-home-marker]) .kh-quality-metrics strong {
-    font-size: 1.55rem;
+  html:has([data-knit-home-marker]) .kh-test-matrix th,
+  html:has([data-knit-home-marker]) .kh-test-matrix td {
+    padding-block: 0.7rem;
   }
 
   html:has([data-knit-home-marker]) .kh-metric-grid article {
@@ -1767,6 +1735,48 @@ html:has([data-knit-home-marker]) button:focus-visible {
 }
 
 @media (max-width: 35rem) {
+  html:has([data-knit-home-marker]) .kh-quality {
+    gap: 1.5rem;
+  }
+
+  html:has([data-knit-home-marker]) .kh-test-matrix-scroll {
+    overflow-x: visible;
+  }
+
+  html:has([data-knit-home-marker]) .kh-test-matrix table {
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  html:has([data-knit-home-marker]) .kh-test-matrix th,
+  html:has([data-knit-home-marker]) .kh-test-matrix td {
+    padding: 0.7rem 0.18rem;
+  }
+
+  html:has([data-knit-home-marker]) .kh-test-matrix th:first-child {
+    width: 29%;
+    padding-left: 0.55rem;
+  }
+
+  html:has([data-knit-home-marker]) .kh-test-matrix thead th {
+    font-size: 0.57rem;
+  }
+
+  html:has([data-knit-home-marker]) .kh-test-matrix tbody th {
+    font-size: 0.7rem;
+  }
+
+  html:has([data-knit-home-marker]) .kh-test-pass {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.08rem;
+    font-size: 0.82rem;
+  }
+
+  html:has([data-knit-home-marker]) .kh-test-pass small {
+    font-size: 0.53rem;
+  }
+
   html:has([data-knit-home-marker]) .kh-hero-grid {
     padding-block: 2.5rem 3rem;
   }
@@ -1784,9 +1794,13 @@ html:has([data-knit-home-marker]) button:focus-visible {
     width: 100%;
   }
 
-  html:has([data-knit-home-marker]) .kh-hero .kh-button--cloud {
-    width: 13.75rem;
-    margin-inline: auto;
+  html:has([data-knit-home-marker]) .kh-hero .kh-actions {
+    flex-direction: column;
+  }
+
+  html:has([data-knit-home-marker]) .kh-hero .kh-button {
+    width: 11rem;
+    max-width: 100%;
   }
 
   html:has([data-knit-home-marker]) .kh-install-line {

@@ -1,0 +1,123 @@
+---
+title: Schema validation
+description: Validate JSON payloads against a Zod schema on workers.
+hero:
+  title: 'Validation + parsing'
+sidebar:
+  order: 10
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Code } from '@astrojs/starlight/components';
+import { getCode } from '../../../../lib/code-snippets';
+import RuntimeRunTabs from '../../../../components/RuntimeRunTabs.astro';
+
+export const run = getCode("validation/schema_validate/schema_knitting.ts");
+export const bench = getCode("validation/schema_validate/bench_schema_validate.ts");
+export const utils = getCode("validation/schema_validate/utils.ts");
+
+This example parses JSON strings, validates them against a Zod schema, and
+returns typed results on either the main thread or a Knitting worker pool. If your app already does `JSON.parse` + validation and you want to see what offloading looks like, start here.
+
+## How it works
+
+The host generates JSON strings (some valid, some intentionally broken). Each job parses the string, runs it through `UserSchema.safeParse`, and returns `{ ok: true, value }` or `{ ok: false, issues }`. The host aggregates counts and prints sample failures.
+
+Three files:
+
+- `schema_knitting.ts` -- runs parsing and validation in host and Knitting modes
+- `utils.ts` -- schema logic, payload builders, task exports
+- `bench_schema_validate.ts` -- host-vs-worker benchmark with `mitata`
+
+## Example payloads
+
+```json
+// valid
+{
+  "id": "u_42",
+  "email": "ari@knitting.dev",
+  "displayName": "Ari Lane",
+  "age": 29,
+  "roles": ["admin"],
+  "marketingOptIn": true
+}
+
+// invalid
+{
+  "id": "u_42",
+  "email": "ari@knitting.dev",
+  "displayName": "x",
+  "age": "unknown",
+  "roles": ["owner"]
+}
+```
+
+The first returns `{ ok: true, value }`. The second returns `{ ok: false, issues }`, with
+messages like `displayName: String must contain at least 2 character(s)` or
+`age: Expected number, received string`.
+
+## Run
+
+:::info
+<RuntimeRunTabs
+  bunCommand="bun src/schema_knitting.ts"
+  denoCommand="deno run -A src/schema_knitting.ts"
+  nodeCommand="npx tsx src/schema_knitting.ts"
+/>
+:::
+
+You should see output like:
+
+```
+-- host mode --
+  valid: 800  invalid: 200  sample issue: ["Expected string, received number"]
+
+-- knitting mode (2 threads) --
+  valid: 800  invalid: 200  sample issue: ["Expected string, received number"]
+```
+
+## Optional benchmark
+
+:::info
+<RuntimeRunTabs
+  bunCommand="bun src/bench_schema_validate.ts"
+  nodeCommand="npx tsx src/bench_schema_validate.ts"
+/>
+:::
+
+The benchmark compares `JSON.parse + safeParse` via direct function imports (`host`) against the
+same logic dispatched through a worker pool (`knitting`). Batch calls keep per-dispatch overhead
+predictable.
+
+Expected output:
+
+```
+benchmark        avg (ns)    min ... max (ns)
+host              12,340     11,200 ... 18,400
+knitting           6,890      6,100 ... 11,200
+```
+
+:::note
+These results show a speedup for batched validation on the measured setup.
+Compare both paths on your own hardware and batch size.
+:::
+
+## Code
+
+<Tabs>
+  <TabItem label="schema_knitting.ts">
+    <Code code={run} lang="ts" title={"schema_knitting.ts"} />
+  </TabItem>
+  <TabItem label="bench_schema_validate.ts">
+    <Code code={bench} lang="ts" title={"bench_schema_validate.ts"} />
+  </TabItem>
+  <TabItem label="utils.ts">
+    <Code code={utils} lang="ts" title={"utils.ts"} />
+  </TabItem>
+</Tabs>
+
+## When to use this pattern
+
+Schema validation can work well in a pool: each call is independent, inputs and
+outputs are small in this example, and Zod's type checking and error formatting
+use CPU time. If you're validating hundreds of payloads per second -- API gateway, webhook ingestion, form processing -- batching them through a pool can free your main thread without changing any validation logic.

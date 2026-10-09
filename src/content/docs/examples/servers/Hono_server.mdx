@@ -1,0 +1,152 @@
+---
+title: Hono server routes
+description: Build a Hono server with ping, SSR, and JWT routes in Knitting or host-only mode.
+hero:
+  title: 'Hono + SSR + JWT'
+sidebar:
+  order: 40
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Code } from '@astrojs/starlight/components';
+import { getCode } from '../../../../lib/code-snippets';
+import RuntimeRunTabs from '../../../../components/RuntimeRunTabs.astro';
+
+export const server = getCode("servers/hono_server/hono_knitting.ts");
+export const renderSsrPage = getCode("servers/hono_server/hono_componets_ssr.tsx");
+export const issueJwt = getCode("servers/hono_server/hono_components_jwt.ts");
+
+## What is this about?
+
+This example builds a small Hono API with three routes:
+
+1. `GET /ping` for health checks.
+2. `POST /ssr` to render a user card as HTML.
+3. `POST /jwt` to issue a valid signed JWT for a user.
+
+This example is split into three files:
+
+1. `hono_knitting.ts` (the Hono server, plus a Knitting worker pool).
+2. `hono_componets_ssr.tsx` (SSR task: parse + defaults + render).
+3. `hono_components_jwt.ts` (JWT task: validate + sign + return JSON string).
+
+## Technologies used (and why)
+
+- **Hono**: a small, fast routing layer. It keeps the request path minimal so most overhead is in your actual route work.
+- **`@hono/node-server`**: a thin adapter that runs a Hono `fetch` handler on Node/Bun.
+- **React SSR (`react-dom/server`)**: renders a tiny HTML page for `/ssr` so you can simulate CPU-heavy server work.
+- **`hono/jwt`**: signs a JWT (HS256) for `/jwt` so the example includes CPU work typical of authentication routes.
+- **Knitting (`knitting`)**: runs selected transforms in a worker pool (threads). This keeps expensive route work off the request thread.
+
+The JWT route uses `hono/jwt` and signs with HS256.
+Set `JWT_SECRET` in production.
+
+## Deno setup (TSX + npm)
+
+This example imports TSX and npm packages. For Deno, keep a root `deno.json`
+like this:
+
+```json
+{
+  "nodeModulesDir": "auto",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "react"
+  }
+}
+```
+
+Without this, TSX files can fail with:
+
+```txt
+Uncaught SyntaxError: Unexpected token '<'
+```
+
+## Run
+
+:::info
+<RuntimeRunTabs
+  bunLabel="Bun (Knitting)"
+  bunCommand='JWT_SECRET="replace-me" bun src/hono_knitting.ts'
+  denoCommand='JWT_SECRET="replace-me" deno run -A src/hono_knitting.ts'
+/>
+:::
+
+## Route quick checks
+
+```bash
+# Ping
+curl -s http://localhost:3000/ping
+
+# SSR (returns HTML)
+curl -s http://localhost:3000/ssr \
+  -H 'content-type: application/json' \
+  -d '{"name":"Ari","plan":"pro","bio":"Building on Knitting","projects":17}'
+
+# JWT (returns JSON string with token)
+curl -s http://localhost:3000/jwt \
+  -H 'content-type: application/json' \
+  -d '{"user":{"id":"u_42","email":"ari@example.com","role":"admin"},"ttlSec":900}'
+```
+
+## Performance notes
+
+Measurements: [Hono 16-core benchmark](/documents/hono-16core-benchmark.md).
+
+### Saturating mixed load — throughput
+
+One worker, with `/ping`, `/ssr`, and `/jwt` loaded concurrently.
+
+| Route | Hono only | Hono + Knitting | Delta |
+| --- | ---: | ---: | ---: |
+| `/ping` | `2,815 rps` | `8,486 rps` | **+201%** |
+| `/ssr` | `2,815 rps` | `4,816 rps` | **+71%** |
+| `/jwt` | `2,578 rps` | `4,712 rps` | **+83%** |
+
+### Fixed 6,000 RPS mixed load — latency
+
+One worker, with each route offered `2,000 rps`.
+
+| Route | Hono only p50 | Knitting p50 | Hono only p99 | Knitting p99 |
+| --- | ---: | ---: | ---: | ---: |
+| `/ping` | `0.81ms` | `0.40ms` | `16.93ms` | `2.31ms` |
+| `/ssr` | `0.84ms` | `2.22ms` | `14.32ms` | `8.71ms` |
+| `/jwt` | `1.03ms` | `2.58ms` | `25.18ms` | `9.76ms` |
+
+### CPU cost at the fixed load
+
+The latency improvement did not come from doing materially more CPU work. The
+host-only server used `1.08` server-process cores. The primary one-worker run
+used `1.10`, and an equivalent repeat of the same one-worker configuration used
+`1.06`.
+
+Read those measurements as approximately `1.1` cores for both configurations, not as a
+meaningful difference between `1.08` and `1.10`. The SSR and JWT computation
+does not disappear when it moves to the worker. Knitting keeps the transport,
+waiting, and coordination cost low enough that the same work costs about the
+same CPU while `/ping` no longer queues behind it.
+
+These are workload-specific 15-second runs. The full report documents the
+methodology, repeat variance, and limitations; they are evidence for the design,
+not a universal performance guarantee.
+
+## Why this pattern matters
+
+- `ping` stays cheap and synchronous.
+- You can benchmark workers vs host-only with the same route behavior.
+- In Knitting mode, the JWT task returns **stringified JSON** to reduce structured-clone overhead.
+- Heavy route logic stays in one shared file, keeping both server entrypoints small.
+
+## Code
+
+<Tabs>
+  <TabItem label="hono_knitting.ts">
+    <Code code={server} lang="ts" title={"hono_knitting.ts"} />
+  </TabItem>
+  <TabItem label="hono_componets_ssr.tsx">
+    <Code code={renderSsrPage} lang="tsx" title={"hono_componets_ssr.tsx"} />
+  </TabItem>
+  <TabItem label="hono_components_jwt.ts">
+    <Code code={issueJwt} lang="ts" title={"hono_components_jwt.ts"} />
+  </TabItem>
+</Tabs>

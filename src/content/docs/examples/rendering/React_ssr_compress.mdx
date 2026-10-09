@@ -1,0 +1,113 @@
+---
+title: React SSR compression
+description: Render React on a worker and Brotli-compress the HTML, measuring where the compression step belongs.
+hero:
+  title: 'SSR + compression'
+sidebar:
+  order: 21
+
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Code } from '@astrojs/starlight/components';
+import { getCode } from '../../../../lib/code-snippets';
+import DontDoubleParseTip from '../../../../components/tips/DontDoubleParseTip.astro';
+import RuntimeRunTabs from '../../../../components/RuntimeRunTabs.astro';
+
+export const bench = getCode("rendering/react_ssr_compress/bench_react_ssr_compress.ts");
+export const component = getCode("rendering/react_ssr_compress/render_user_card_compressed.tsx");
+
+This example adds Brotli compression to the React SSR example. It compares
+rendering and compression on the worker with rendering on the worker and
+compression on the host. Keeping both steps together also reduces the amount
+of data returned to the host.
+
+## How it works
+
+The host generates JSON payload strings, and the benchmark measures three placements of the same work:
+
+1. **host** -- render and compress on the main thread.
+2. **worker: render only, host compresses** -- the worker returns HTML, the host runs Brotli.
+3. **worker: render + compress** -- both steps on the worker, so only the compressed bytes come back.
+
+All three must produce identical compressed byte totals; the benchmark checks that before measuring.
+
+- `bench_react_ssr_compress.ts` -- the benchmark
+- `render_user_card_compressed.tsx` -- the SSR + compression task
+
+Payloads and the card component come from the [React SSR](/examples/rendering/react_ssr)
+example, so the only new code here is the compression step.
+
+## Example input and output
+
+Input is the same JSON payload shape as the plain React SSR example. The worker call is:
+
+```ts
+const compressed = await pool.call.renderUserCardCompressed(payloadJson);
+```
+
+Output is a Brotli-compressed `Buffer`, not an HTML string. That is the point of this example:
+do the expensive render and compression work in one place, then return the smaller payload.
+
+Compression uses built-in `node:zlib` -- no extra packages.
+
+## Optional benchmark
+
+:::info
+<RuntimeRunTabs
+  bunCommand="bun src/bench_react_ssr_compress.ts"
+  denoCommand="deno run -A src/bench_react_ssr_compress.ts"
+  nodeCommand="npx tsx src/bench_react_ssr_compress.ts"
+/>
+:::
+
+Expected output (4 cores / 8 threads, Bun 1.4, 100 requests per iteration):
+
+```
+byte parity check: host=52,551 worker=52,551 split=52,551 OK match
+
+React SSR + compression benchmark (mitata)
+workload: parse + normalize + render + brotli
+requests per iteration: 100
+threads: 4 + inliner
+
+benchmark                            avg (min … max)
+host: render + compress              294.18 ms/iter
+worker: render only, host compresses 284.79 ms/iter
+worker: render + compress            111.20 ms/iter
+
+summary
+  worker: render + compress
+   2.65x faster than host: render + compress
+   2.56x faster than worker: render only, host compresses
+```
+
+The middle row is the interesting one: moving only the render to a worker is
+barely faster than doing everything on the host. You pay to ship the full HTML
+back, and every Brotli call still lands on the thread you were trying to keep
+free. Keeping compression in the
+worker frees the host from that work and reduces the return payload.
+
+Brotli is also far more expensive than `renderToString` alone, which changes the
+pool shape: the plain SSR example is faster **without** an inliner, while this
+one is faster **with** one. The host spends most of its time waiting here, so
+giving it a share of the work pays. That is a workload property, not a rule --
+measure it on yours.
+
+<DontDoubleParseTip />
+
+## Code
+
+<Tabs>
+  <TabItem label="render_user_card_compressed.tsx">
+    <Code code={component} lang="tsx" title={"render_user_card_compressed.tsx"} />
+  </TabItem>
+  <TabItem label="bench_react_ssr_compress.ts">
+    <Code code={bench} lang="ts" title={"bench_react_ssr_compress.ts"} />
+  </TabItem>
+</Tabs>
+
+## Compression placement matters
+
+Where you compress affects both throughput and data transfer. If you compress on the worker, you send a small compressed buffer back to the host. If you compress on the host, you first transfer the full uncompressed HTML string across the thread boundary, then compress it. For a server, measure rendering and compression together on the worker to see
+whether that reduces request latency and transfer overhead.

@@ -1,0 +1,102 @@
+---
+title: Markdown to HTML
+description: Convert Markdown to HTML and Brotli-compress it in the same worker call.
+hero:
+  title: 'Markdown rendering'
+sidebar:
+  order: 22
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Code } from '@astrojs/starlight/components';
+import { getCode } from '../../../../lib/code-snippets';
+import RuntimeRunTabs from '../../../../components/RuntimeRunTabs.astro';
+
+export const run = getCode("rendering/markdown_to_html/run_markdown_to_html.ts");
+export const bench = getCode("rendering/markdown_to_html/bench_markdown_to_html.ts");
+export const utils = getCode("rendering/markdown_to_html/utils.ts");
+
+This example converts Markdown to HTML with `marked`, then compresses the
+output with Brotli. It keeps parsing, rendering, and compression in one worker
+call.
+
+## How it works
+
+The host generates Markdown documents. Both the host and worker paths parse the Markdown, render HTML, then Brotli-compress the result. Compressed byte totals are compared for parity before the benchmark runs.
+
+Three files:
+
+- `run_markdown_to_html.ts` -- a small runnable example that compares host and worker output
+- `bench_markdown_to_html.ts` -- the optional host-vs-worker benchmark
+- `utils.ts` -- markdown rendering, compression tasks, and shared helpers
+
+## Run
+
+:::info
+<RuntimeRunTabs
+  bunCommand="bun src/run_markdown_to_html.ts --threads 2"
+  denoCommand="deno run -A src/run_markdown_to_html.ts --threads 2"
+  nodeCommand="npx tsx src/run_markdown_to_html.ts --threads 2"
+/>
+:::
+
+Example markdown in:
+
+```md
+# Knitting markdown example
+
+This example renders markdown on the host and in a worker.
+
+## Checklist
+
+- Parse markdown
+- Render HTML
+- Compare outputs
+```
+
+HTML out:
+
+```html
+<h1>Knitting markdown example</h1>
+<p>This example renders markdown on the host and in a worker.</p>
+<h2>Checklist</h2>
+...
+```
+
+## Optional benchmark
+
+:::info
+<RuntimeRunTabs
+  bunCommand="bun src/bench_markdown_to_html.ts"
+  denoCommand="deno run -A src/bench_markdown_to_html.ts"
+  nodeCommand="npx tsx src/bench_markdown_to_html.ts"
+/>
+:::
+
+Expected output:
+
+```
+byte parity check: host=18,720  worker=18,720  OK match
+
+benchmark        avg (ns)    min ... max (ns)
+host              32,100     29,400 ... 41,200
+knitting          17,800     15,600 ... 24,300
+```
+
+## Code
+
+<Tabs>
+  <TabItem label="run_markdown_to_html.ts">
+    <Code code={run} lang="ts" title={"run_markdown_to_html.ts"} />
+  </TabItem>
+  <TabItem label="bench_markdown_to_html.ts">
+    <Code code={bench} lang="ts" title={"bench_markdown_to_html.ts"} />
+  </TabItem>
+  <TabItem label="utils.ts">
+    <Code code={utils} lang="ts" title={"utils.ts"} />
+  </TabItem>
+</Tabs>
+
+## A clean pipeline example
+
+This is the simplest rendering example -- no component tree, no JSX, just Markdown in and compressed bytes out. It's a good reference if you want to understand the worker pattern without the React SSR complexity. The same approach works for any transform chain: parse input, process it, compress or encode the result.

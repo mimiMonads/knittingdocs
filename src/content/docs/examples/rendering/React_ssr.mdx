@@ -1,0 +1,153 @@
+---
+title: React SSR
+description: Render React components to HTML strings on workers, away from the request thread.
+hero:
+  title: 'React SSR'
+sidebar:
+  order: 20
+
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Code } from '@astrojs/starlight/components';
+import { getCode } from '../../../../lib/code-snippets';
+import DontDoubleParseTip from '../../../../components/tips/DontDoubleParseTip.astro';
+import RuntimeRunTabs from '../../../../components/RuntimeRunTabs.astro';
+
+export const bench = getCode("rendering/react_ssr/bench_react_ssr.ts");
+export const component = getCode("rendering/react_ssr/render_user_card.tsx");
+export const utils = getCode("rendering/react_ssr/utils.ts");
+
+This example renders React components to HTML strings on workers using `renderToString`. If your server does SSR, this is probably the example closest to your real workload -- parse JSON input, normalize data, render a component, return HTML.
+
+## How it works
+
+The host generates JSON payload strings. The host path calls `renderUserCardHost` directly (parse + normalize + `renderToString`). The worker path sends the same payloads through `createPool`. Byte totals are compared once to verify the host and worker produce identical output, then `mitata` benchmarks both paths.
+
+Three files:
+
+- `bench_react_ssr.ts` -- the benchmark itself
+- `render_user_card.tsx` -- the SSR component and worker task
+- `utils.ts` -- input payloads and normalization helpers
+
+## Example payload and result
+
+Input:
+
+```json
+{
+  "id": "u42",
+  "name": "Ari Lane",
+  "handle": "@ari",
+  "bio": "Building fast UIs.",
+  "plan": "pro",
+  "location": "Austin, TX",
+  "joinedAt": "2026-01-18",
+  "tags": ["react", "ssr", "workers"],
+  "stats": { "posts": 42, "followers": 1200, "following": 180, "likes": 9800 },
+  "alerts": { "unread": 3, "lastLogin": "2026-01-18" }
+}
+```
+
+Minimal usage:
+
+```ts
+using pool = createPool({ threads: 4 })({ renderUserCard });
+const html = await pool.call.renderUserCard(payloadJson);
+```
+
+Result:
+
+```html
+<article class="user-card" data-user-id="u42">...</article>
+```
+
+## Deno setup (TSX + npm)
+
+If you run this with Deno and see `Uncaught SyntaxError: Unexpected token '<'`, set a root `deno.json` so Deno transpiles TSX and resolves npm packages:
+
+```json
+{
+  "nodeModulesDir": "auto",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "react"
+  }
+}
+```
+
+## Optional benchmark
+
+:::info
+<RuntimeRunTabs
+  bunCommand="bun src/bench_react_ssr.ts"
+  denoCommand="deno run -A src/bench_react_ssr.ts"
+  nodeCommand="npx tsx src/bench_react_ssr.ts"
+/>
+:::
+
+Expected output (4 cores / 8 threads, Bun 1.4, 2,000 requests per iteration):
+
+```
+byte parity check: host=3,811,213 worker=3,811,213 OK match
+
+React SSR benchmark (mitata)
+workload: parse + normalize + render to HTML
+requests per iteration: 2,000
+threads: 4
+
+benchmark                       avg (min … max)
+host (2,000 req)                288.22 ms/iter (264.75 ms … 332.57 ms)
+knitting (4 threads, 2,000 req) 149.34 ms/iter (131.43 ms … 180.24 ms)
+
+summary
+  knitting (4 threads, 2,000 req)
+   1.94x faster than host (2,000 req)
+```
+
+Rendering is CPU-bound, so workers can run it in parallel. The speedup depends
+on your component, payloads, available cores, and other work on the host.
+
+:::note
+The byte parity check runs once before benchmarking to confirm host and worker produce identical HTML. If it doesn't match, something is wrong with your setup.
+:::
+
+<DontDoubleParseTip />
+
+## Code
+<Tabs>
+
+  <TabItem label="bench_react_ssr.ts">
+    <Code code={bench} lang="ts" title={"bench_react_ssr.ts"} />
+  </TabItem>
+  <TabItem label="render_user_card.tsx">
+    <Code code={component} lang="tsx" title={"render_user_card.tsx"} />
+  </TabItem>
+  <TabItem label="utils.ts">
+    <Code code={utils} lang="ts" title={"utils.ts"} />
+  </TabItem>
+</Tabs>
+
+## Sizing the pool
+
+This example used to run one worker plus an inliner, and with that configuration it was
+slower than rendering on the host. Two things were working against it:
+
+- **A single worker still pays the full transport cost.** A single lane pays the
+  full cost of moving a payload out and HTML back, and gets one core's worth of
+  rendering in exchange. Multi-worker pools also enable shared-submit work
+  stealing by default, which a one-worker pool never engages.
+- **The inliner takes back the thread you were trying to free.** It renders on
+  the host between dispatches, so the event loop you moved SSR off is busy
+  again -- and it is the same thread awaiting every result.
+
+Dropping the inliner and moving to four workers made the same benchmark
+roughly `1.8-1.9x` faster than the host, and cut per-iteration
+allocation by about two thirds. Choose `threads` from your own measurements:
+the right value depends on your component, your payloads, and what else the
+host is doing. Start at 2-4, measure, and only
+add the inliner if it earns its place on your workload.
+
+## Why SSR is a great fit for workers
+
+`renderToString` is synchronous and CPU-bound -- it walks your component tree and builds an HTML string. For an individual request, it may be fast, but under load it blocks the event loop and everything else waits. Moving SSR to a worker pool means your main thread stays free to accept requests and handle I/O while rendering happens in parallel. The Hono server example shows what this looks like in a real HTTP server context.
