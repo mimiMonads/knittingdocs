@@ -17,6 +17,9 @@ Start with [Hono server routes](/examples/servers/hono_server). It combines SSR,
 **"I do SSR and want to offload rendering"**
 [React SSR](/examples/rendering/react_ssr) shows the basic pattern. [React SSR compression](/examples/rendering/react_ssr_compress) adds Brotli and tests where compression should live (worker vs host).
 
+**"I need to transform and minify code"**
+[Bundling and minifying](/examples/build_tools/bundling_and_minifying) shows esbuild followed by Terser on workers, with a cap for async tasks that resume with CPU-heavy work.
+
 **"I need to validate or parse lots of data"**
 [Schema validation](/examples/validation/schema_validate) (Zod), [JWT revalidation](/examples/validation/jwt_revalidation) (Web Crypto), or [Salt hashing](/examples/validation/salt_hashing) (PBKDF2) -- pick whichever is closest to your workload.
 
@@ -57,6 +60,10 @@ The math examples cover the spectrum: [Monte Carlo pi](/examples/maths/monte_pi)
 - [React SSR compression](/examples/rendering/react_ssr_compress) -- SSR + Brotli, worker vs host comparison
 - [Markdown to HTML](/examples/rendering/markdown_to_html) -- simple markdown transform pipeline
 - [PDF invoices](/examples/rendering/pdf_invoices) -- generate PDF documents and return the bytes
+
+### Build tools
+
+- [Bundling and minifying](/examples/build_tools/bundling_and_minifying) -- transform TypeScript with esbuild, then minify with Terser on workers
 
 ### Text
 
