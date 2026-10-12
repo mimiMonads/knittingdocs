@@ -125,6 +125,12 @@ cancellation state. Adding threads beyond the available cores usually stops
 helping. See [Multi-threading](/guides/multi-threading/) for a server-focused
 selection process and timer configuration.
 
+Batch jobs that return large binary results can stop scaling sooner. The host
+receives and decodes every result on its own thread, so it can become the
+bottleneck before the workers do. If throughput levels off as you add workers,
+compare end-to-end time with the time spent in the task, and check host CPU
+before you tune the scheduler.
+
 ### Native work stealing
 
 Compatible multi-worker pools use native work stealing by default. The host

@@ -43,3 +43,18 @@ Knitting is also published on JSR as `@vixeny/knitting` — the same code under 
 scoped name. The npm package is the simplest path on every runtime, so prefer it
 unless you specifically need the JSR entry.
 :::
+
+:::caution[Deno thread workers]
+On Deno, thread pools need the npm package. Knitting starts thread workers
+through `node:worker_threads`, which in Deno only accepts `file:` and `data:`
+URLs. Imported from JSR, Knitting's modules have `https:` URLs, so
+`createPool()` fails as soon as it starts a worker. Install it with
+`deno add --npm knitting` and set `nodeModulesDir` to `"auto"` in your
+project's root `deno.json`:
+
+```json
+{
+  "nodeModulesDir": "auto"
+}
+```
+:::
