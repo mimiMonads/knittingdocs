@@ -15,7 +15,8 @@
     "brand:generate": "node scripts/generate-brand-assets.mjs",
     "bench:sync": "node scripts/sync-bench.mjs",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "check:llms": "node scripts/check-llms.mjs"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.34.4",
