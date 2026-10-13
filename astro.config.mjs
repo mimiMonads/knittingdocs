@@ -312,6 +312,10 @@ export default defineConfig({
           collapsed: true,
           autogenerate: { directory: "extras" },
         },
+        {
+          label: "Discord",
+          link: "https://discord.gg/PbKZdR3wW",
+        },
       ],
     }),
   ],
