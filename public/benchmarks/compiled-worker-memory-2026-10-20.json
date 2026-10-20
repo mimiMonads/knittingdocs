@@ -7,32 +7,37 @@
     "pinnedPorffor": "alpha 1 (ba4813d 2026-07-15), pinned git 747d551844750fc5ed32cf88cdf0b3854aee267e",
     "latestPorffor": "alpha 18 (deda494 2026-10-19)",
     "cpu": "AMD Ryzen 7 4700U, 8 logical CPUs",
-    "method": "Fresh Node host per sample; built JavaScript entry point; one discarded warmup and 10 measured runs per configuration, with shuffled case order. Numeric addOne task; batch of one call per configured worker. Calls do not establish that each individual worker executed a task. Memory sampled after 300 ms idle from /proc/PID/status and /proc/PID/smaps_rollup. Default allocation sizes, no forced GC. Compiled workers use explicitly selected Porffor alpha 18 and prebuilt artifacts; Node process workers use unsafe permission. Worker-only summaries exclude the host; raw samples retain host measurements for transparency. RSS sums can double count shared pages; PSS apportions them. Near-idle memory, not workload peak memory."
+    "method": "Fresh Node host per sample; built JavaScript entry point; one discarded warmup and 10 measured runs per configuration, with shuffled case order. Numeric addOne task; batch of one call per configured worker. Calls do not establish that each individual worker executed a task. Memory sampled after 300 ms idle from /proc/PID/status and /proc/PID/smaps_rollup. Default allocation sizes, no forced GC. Compiled workers use explicitly selected Porffor alpha 18 and prebuilt artifacts; Node process workers use unsafe permission. Worker-only summaries exclude the host; raw samples retain host measurements for transparency. RSS sums can double count shared pages; PSS apportions them. Near-idle memory, not workload peak memory.",
+    "startupTiming": "createPool through a successful batch of one call per configured worker; excludes host loading, compilation, and shutdown. Does not establish that every individual worker handled a call."
   },
   "workerOnlySummary": [
     {
       "backend": "compiled",
       "workers": 1,
       "workerRssMiB": 4.25,
-      "workerPssMiB": 2.7197265625
+      "workerPssMiB": 2.7197265625,
+      "startupMedianMs": 11.502454999999998
     },
     {
       "backend": "process",
       "workers": 1,
       "workerRssMiB": 62.65234375,
-      "workerPssMiB": 38.4716796875
+      "workerPssMiB": 38.4716796875,
+      "startupMedianMs": 94.332581
     },
     {
       "backend": "compiled",
       "workers": 4,
       "workerRssMiB": 16.875,
-      "workerPssMiB": 9.3857421875
+      "workerPssMiB": 9.3857421875,
+      "startupMedianMs": 17.6721625
     },
     {
       "backend": "process",
       "workers": 4,
       "workerRssMiB": 249.314453125,
-      "workerPssMiB": 101.4482421875
+      "workerPssMiB": 101.4482421875,
+      "startupMedianMs": 105.99540950000001
     }
   ],
   "samples": [

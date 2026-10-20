@@ -21,18 +21,21 @@ feature to try with code you trust, not a security boundary for untrusted
 tasks.
 :::
 
-## Worker memory compared with Node.js processes
+## Startup and worker memory compared with Node.js processes
 
 In a small numeric-task benchmark, Porffor workers used about 93% less resident
 memory (RSS) than Knitting's Node.js process workers. Both sides used Knitting;
-the measurements below include only the worker processes, excluding the host.
+the memory measurements below include only the worker processes, excluding the host.
 
-| Knitting worker backend | Workers | Combined worker RSS | Combined worker PSS |
-| --- | ---: | ---: | ---: |
-| Porffor compiled | 1 | 4.25 MiB | 2.72 MiB |
-| Node.js process | 1 | 62.65 MiB | 38.47 MiB |
-| Porffor compiled | 4 | 16.88 MiB | 9.39 MiB |
-| Node.js process | 4 | 249.31 MiB | 101.45 MiB |
+| Knitting worker backend | Workers | Startup to replies | Combined worker RSS | Combined worker PSS |
+| --- | ---: | ---: | ---: | ---: |
+| Porffor compiled | 1 | 11.50 ms | 4.25 MiB | 2.72 MiB |
+| Node.js process | 1 | 94.33 ms | 62.65 MiB | 38.47 MiB |
+| Porffor compiled | 4 | 17.67 ms | 16.88 MiB | 9.39 MiB |
+| Node.js process | 4 | 106.00 ms | 249.31 MiB | 101.45 MiB |
+
+Startup measures `createPool()` through a successful batch of one call per
+configured worker. It excludes host loading, compilation, and shutdown.
 
 RSS counts each process's resident pages, so summing it can count shared pages
 more than once. PSS divides shared pages among the processes using them and
@@ -54,7 +57,8 @@ Node.js workers used
 `compiled.build: false`. Alpha 18 was selected explicitly; these results do not
 describe Knitting's default pinned compiler.
 
-The task returned its numeric argument plus one. Memory was sampled from
+The task returned its numeric argument plus one. The startup batch does not
+establish that every individual worker handled a call. Memory was sampled from
 Linux `/proc` 300 ms after a successful batch of one call per configured worker,
 with default allocation sizes and no forced garbage collection. These are
 near-idle measurements rather than workload peak memory.
