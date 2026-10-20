@@ -82,7 +82,7 @@ const crossOriginIsolationHeaders = {
   "Cross-Origin-Opener-Policy": "same-origin",
   "Cross-Origin-Embedder-Policy": "require-corp",
 };
-const discordInvite = "https://discord.gg/PbKZdR3wW";
+const discordInvite = "https://discord.gg/qUguPADQnT";
 
 // https://astro.build/config
 export default defineConfig({
