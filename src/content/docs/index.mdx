@@ -95,19 +95,15 @@ export const quickStart = getCode("home_hono_compress.ts");
 <section class="kh-proof" aria-label="Project highlights" data-reveal>
   <div>
     <strong>No runtime dependencies</strong>
-    <span>Knitting runs without extra packages</span>
   </div>
   <div>
     <strong>Typed calls</strong>
-    <span>Typed arguments and results</span>
   </div>
   <div>
     <strong>Threads or processes</strong>
-    <span>The same API for both</span>
   </div>
   <div>
-    <strong>Open source</strong>
-    <span>Apache-2.0 licensed</span>
+    <strong>Apache-2.0</strong>
   </div>
 </section>
 
@@ -121,15 +117,14 @@ export const quickStart = getCode("home_hono_compress.ts");
     <div class="kh-server-proof-copy">
       <p class="kh-kicker">In a busy server</p>
       <h2 id="kh-server-proof-title">Keep fast routes fast.</h2>
-      <p>When the main thread is busy, even a simple <code>/ping</code> has to wait. Moving React rendering and JWT signing into one worker leaves more room for the main thread to respond.</p>
-      <p><code>/ping</code> stayed on the main thread. At the same request rate, its p99 response time fell from 16.93 ms to 2.31 ms, with similar CPU use.</p>
-      <p class="kh-benchmark-caveat">Measured in 15-second runs with one worker. Results depend on your workload and pool size.</p>
+      <p>Move React rendering and JWT signing to one worker. Keep lightweight routes like <code>/ping</code> on the main thread.</p>
+      <p class="kh-benchmark-caveat">Hono · 1 worker · 15-second runs. Results vary by workload.</p>
       <div class="kh-server-proof-links">
         <a href={homeUrl("/examples/servers/hono_server/")}>
-          View the Hono server <span aria-hidden="true">→</span>
+          Server example <span aria-hidden="true">→</span>
         </a>
         <a href={homeUrl("/documents/hono-16core-benchmark.md")}>
-          See the measurements <span aria-hidden="true">→</span>
+          Measurements <span aria-hidden="true">→</span>
         </a>
       </div>
     </div>
@@ -137,12 +132,11 @@ export const quickStart = getCode("home_hono_compress.ts");
   </section>
 
   <section class="kh-section kh-stealing" data-reveal aria-labelledby="kh-workers-title">
-    <div class="kh-section-intro kh-section-intro--split">
+    <div class="kh-section-intro">
       <div>
-        <p class="kh-kicker">Work stealing, visualized</p>
+        <p class="kh-kicker">Work stealing</p>
         <h2 id="kh-workers-title">Finish a task. Pick up another.</h2>
       </div>
-      <p>Two workers, each with a queue. When one runs out of work, it takes the first waiting task from its peer.</p>
     </div>
     <WorkStealing />
   </section>
@@ -151,7 +145,6 @@ export const quickStart = getCode("home_hono_compress.ts");
     <div class="kh-section-intro">
       <p class="kh-kicker">Quick start</p>
       <h2 id="kh-start-title">Run a function in a worker.</h2>
-      <p>This Hono route compresses HTML in a worker and returns the compressed size.</p>
     </div>
 
     <QuickStartTour>
@@ -173,7 +166,7 @@ export const quickStart = getCode("home_hono_compress.ts");
               <span>01</span>
               <span class="kh-step-copy">
                 <strong>Export your function</strong>
-                <span class="kh-step-description">Define and export the function at the top level of its module.</span>
+                <span class="kh-step-description">Export at module scope.</span>
               </span>
             </button>
           </li>
@@ -182,7 +175,7 @@ export const quickStart = getCode("home_hono_compress.ts");
               <span>02</span>
               <span class="kh-step-copy">
                 <strong>Create the pool</strong>
-                <span class="kh-step-description">Create a pool with one worker and pass it your function.</span>
+                <span class="kh-step-description">Reuse the pool across requests.</span>
               </span>
             </button>
           </li>
@@ -191,7 +184,7 @@ export const quickStart = getCode("home_hono_compress.ts");
               <span>03</span>
               <span class="kh-step-copy">
                 <strong>Call it from your route</strong>
-                <span class="kh-step-description">Use <code>await</code> to get the result, just like any other async call.</span>
+                <span class="kh-step-description">Await the typed result.</span>
               </span>
             </button>
           </li>
@@ -203,7 +196,6 @@ export const quickStart = getCode("home_hono_compress.ts");
 
   <section class="kh-section kh-features" data-reveal aria-labelledby="kh-features-title">
     <div class="kh-section-intro">
-      <p class="kh-kicker">What Knitting handles</p>
       <h2 id="kh-features-title">A runtime around your workers.</h2>
     </div>
     <WorkerComparison />
@@ -244,21 +236,19 @@ export const quickStart = getCode("home_hono_compress.ts");
 
   <section class="kh-quality" data-reveal aria-labelledby="kh-quality-title">
     <div class="kh-quality-copy">
-      <p class="kh-kicker">Benchmarks and tests</p>
       <h2 id="kh-quality-title">See how it’s tested.</h2>
-      <p>The benchmarks include the setup and methodology. The tests cover shared memory, timeouts, permissions, and worker failures. Found a bug? Open an issue.</p>
+      <p>Tests cover shared memory, cancellation, timeouts, and worker failures.</p>
       <div class="kh-quality-links">
-        <a href={homeUrl("/benchmarks/introduction/")}>See the performance results <span aria-hidden="true">→</span></a>
-        <a href="https://github.com/mimiMonads/knitting/tree/main/test">Browse the tests</a>
-        <a href="https://github.com/mimiMonads/knitting/issues">Report an issue</a>
-        <a href={homeUrl("/llms.txt")}>Docs for AI tools</a>
+        <a href={homeUrl("/benchmarks/introduction/")}>Benchmarks <span aria-hidden="true">→</span></a>
+        <a href="https://github.com/mimiMonads/knitting/tree/main/test">Tests</a>
+        <a href="https://github.com/mimiMonads/knitting/issues">Issues</a>
+        <a href={homeUrl("/llms.txt")}>AI reference</a>
       </div>
     </div>
   </section>
 
   <section class="kh-final" data-reveal aria-labelledby="kh-final-title">
     <h2 id="kh-final-title">Pick one slow function.</h2>
-    <p>Move it into a worker and compare how your app responds.</p>
     <div class="kh-actions">
       <a class="kh-button kh-button--primary" href={homeUrl("/start/quick-start/")}>
         Create your first pool <span aria-hidden="true">→</span>

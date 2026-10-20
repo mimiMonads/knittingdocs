@@ -11,7 +11,7 @@ const cases = [
 <queue-impact>
 <figure class="queue-impact not-content">
   <div class="queue-heading">
-    <span>Same requests. Separate queues.</span>
+    <span>Request flow</span>
     <button type="button" data-queue-toggle hidden>Pause animation</button>
   </div>
   <div class="queue-layout" role="img" aria-label="Requests enter from the left and are consumed on the right. Before: ping waits behind rendering and signing on the main thread. With one worker: rendering and signing queue in the worker while the main thread consumes ping independently.">
@@ -37,7 +37,7 @@ const cases = [
   </div>
 
   <div class="queue-result">
-    <p><code>/ping</code> response time <span>p99 · lower is better</span></p>
+    <p><code>/ping</code> response time <span>p99</span></p>
     <div class="queue-numbers">
       <div><strong>16.93 <small>ms</small></strong><span>Before</span></div>
       <span class="queue-arrow" aria-hidden="true">→</span>
@@ -46,9 +46,8 @@ const cases = [
   </div>
 
   <figcaption>
-    6,000 requests/sec in both runs.<br />
-    CPU per request: 180 µs before · 183 µs with one worker.
-    <br />Animation illustrates queueing, not benchmark timing.
+    6,000 req/s · CPU/request: 180 → 183 µs.<br />
+    Animation is illustrative.
   </figcaption>
 </figure>
 </queue-impact>
