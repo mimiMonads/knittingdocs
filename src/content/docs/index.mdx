@@ -113,6 +113,29 @@ bun add hono @hono/node-server knitting`;
 </section>
 
 <div class="kh-main">
+  <section
+    class="kh-section kh-server-proof"
+    data-reveal
+    aria-labelledby="kh-server-proof-title"
+  >
+    <div class="kh-server-proof-copy">
+      <p class="kh-kicker">In a busy server</p>
+      <h2 id="kh-server-proof-title">Keep fast routes fast.</h2>
+      <p>When the main thread is busy, even a simple <code>/ping</code> has to wait. Moving React rendering and JWT signing into one worker leaves more room for the main thread to respond.</p>
+      <p>In this Hono benchmark, <code>/ping</code> responded sooner at the same load, with roughly the same CPU use. The ping route itself stayed on the main thread.</p>
+      <p class="kh-benchmark-caveat">Measured in 15-second runs with one worker. Results depend on your workload and pool size.</p>
+      <div class="kh-server-proof-links">
+        <a href={homeUrl("/examples/servers/hono_server/")}>
+          View the Hono server <span aria-hidden="true">→</span>
+        </a>
+        <a href={homeUrl("/documents/hono-16core-benchmark.md")}>
+          See the measurements <span aria-hidden="true">→</span>
+        </a>
+      </div>
+    </div>
+    <QueueImpact />
+  </section>
+
   <section class="kh-section kh-start" data-reveal aria-labelledby="kh-start-title">
     <div class="kh-section-intro kh-section-intro--center">
       <p class="kh-kicker">Quick start</p>
@@ -164,29 +187,6 @@ bun add hono @hono/node-server knitting`;
       <pre class="kh-install-code"><code>{install}</code></pre>
       <a href={homeUrl("/start/installation/")}>Installation details <span aria-hidden="true">→</span></a>
     </div>
-  </section>
-
-  <section
-    class="kh-section kh-server-proof"
-    data-reveal
-    aria-labelledby="kh-server-proof-title"
-  >
-    <div class="kh-server-proof-copy">
-      <p class="kh-kicker">In a busy server</p>
-      <h2 id="kh-server-proof-title">Keep fast routes fast.</h2>
-      <p>When the main thread is busy, even a simple <code>/ping</code> has to wait. Moving React rendering and JWT signing into one worker leaves more room for the main thread to respond.</p>
-      <p>In this Hono benchmark, <code>/ping</code> responded sooner at the same load, with roughly the same CPU use. The ping route itself stayed on the main thread.</p>
-      <p class="kh-benchmark-caveat">Measured in 15-second runs with one worker. Results depend on your workload and pool size.</p>
-      <div class="kh-server-proof-links">
-        <a href={homeUrl("/examples/servers/hono_server/")}>
-          View the Hono server <span aria-hidden="true">→</span>
-        </a>
-        <a href={homeUrl("/documents/hono-16core-benchmark.md")}>
-          See the measurements <span aria-hidden="true">→</span>
-        </a>
-      </div>
-    </div>
-    <QueueImpact />
   </section>
 
   <section class="kh-section kh-features" data-reveal aria-labelledby="kh-features-title">
