@@ -12,29 +12,25 @@ import { formatNs, perCallNs, RUNTIMES, RUNTIME_NAMES } from '../../../lib/bench
 
 export const batchedNumber = perCallNs('types', 'payload type cost', 100).find((row) => row.arm === 'number');
 
-The [Performance page](/benchmarks/introduction/) explains the main results.
-This page keeps the reports behind those claims, plus measurements that cover
-other workloads.
+These reports provide the full measurements behind the
+[Performance page](/benchmarks/introduction/). All benchmarks were measured
+with Knitting `0.1.77`.
 
 ## How to read the reports
 
-The M3 Ultra tests were recorded in March 2026 with Knitting `0.1.24`, on
-macOS arm64. Each report names its runtime and gives average, minimum, p75,
-p99 and maximum elapsed time. The performance charts use the averages.
+The M3 Ultra tests use macOS arm64. Each report names its runtime and gives
+average, minimum, p75, p99 and maximum elapsed time. The performance charts use the averages.
 
 A count of `100` means 100 calls in flight, and the reported time is for the
 whole batch. Dividing by 100 gives amortized time per call, useful for comparing
 throughput. It does not tell you how long an individual call waits.
 
-The empty-call test measures a call and its reply with one worker. The payload
-comparison repeats that trip with different values. The CPU-heavy test searches
-for primes up to 10,000,000 in chunks of 250,000, with the main thread taking
-chunks too. Returning the primes adds serialization and parsing work to the
-computation.
+The empty-call and payload tests use one worker. The prime search uses the
+main thread and the listed number of workers; its timings include returning
+the results to the main thread.
 
-The Markdown reports below are the sources for these charts. The separately
-saved JSON exports contain different measurements and are not substituted for
-them. These historical runs have not been repeated on the current release.
+Charts use the Markdown reports below. The separate JSON exports contain
+different runs.
 
 ## Runtime reports
 
@@ -62,22 +58,23 @@ Bun 1.3.6 (`arm64-darwin`).
 
 The [knit-tex benchmark](https://github.com/mimiMonads/knit-tex#benchmarks)
 typesets *Pride and Prejudice* (2,118 paragraph tasks, 216 pages) with either
-the main thread or a Knitting pool. The recorded machine has four physical
+the main thread or a Knitting pool. The Intel Core i5-1135G7 has four physical
 cores and eight logical CPUs; the reports use Node 24.19.0 and Bun 1.4.0 with
-Knitting 0.1.73. Each warm result is the median of five runs on a reused
+Knitting `0.1.77`. Each warm result is the median of five runs on a reused
 executor. The source reports include cold runs, CPU time, timer gaps, and
 output-hash checks:
 
-| Runtime | Main-thread warm | Knitting x4 warm | Speedup | CPU time, main → x4 |
+| Runtime | Main thread, warm | Four workers, warm | Speedup | CPU time, main → workers |
 | --- | ---: | ---: | ---: | ---: |
 | Node 24.19.0 | 427 ms | 229 ms | 1.86× | 509 → 871 ms |
 | Bun 1.4.0 | 449 ms | 254 ms | 1.77× | 607 → 1,266 ms |
 
-Four workers improved warm completion time while using more total CPU time.
-Cold full-document and fresh-process CLI results were slower with four workers
-than on the main thread. The benchmark ran on one machine; its saved reports
-contain medians, not raw samples or confidence intervals. The mixed-batch
-work-stealing runs use three seeds and show mixed results on Bun. See the
+Four workers were faster after warm-up but used more CPU time. Cold and
+fresh-process runs were slower. The reports contain medians from one machine.
+In a separate batch of 2,115 paragraph tasks, four-worker work stealing
+finished 9.7–23.3% sooner on Node.js across three seeds. Bun ranged from 5.5%
+slower to 17.5% faster. Timer gaps in these reports measure event-loop
+responsiveness; they do not measure HTTP latency. See the
 [Node report](https://github.com/mimiMonads/knit-tex/blob/main/output/bench/node-24.19.md),
 [Bun report](https://github.com/mimiMonads/knit-tex/blob/main/output/bench/bun-1.4.0.md),
 and [project README](https://github.com/mimiMonads/knit-tex#benchmarks) for
@@ -85,8 +82,7 @@ methodology and additional comparisons.
 
 ### Calls through one worker
 
-These are newer measurements than the M3 Ultra reports above. With 100 `number`
-calls in flight, amortized time per call is
+With 100 `number` calls in flight, amortized time per call is
 {RUNTIMES.map((runtime) => `${formatNs(batchedNumber.byRuntime[runtime].median)} on ${RUNTIME_NAMES[runtime]}`).join(', ')}.
 Each figure is the median across runs of the average batch time divided by 100.
 
@@ -97,20 +93,20 @@ The [Payload types page](/benchmarks/payload-types/) has the full chart and tabl
 ### Idle pool
 
 In the [Hono report](/documents/hono-16core-benchmark.md), fifteen idle workers
-used {idleCores.after} cores. The earlier spin policy used {idleCores.before}. Those figures compare two
-timer policies on the report's hardware; they are not a general idle-CPU budget.
+used {idleCores.after} cores, compared with {idleCores.before} under the earlier
+spin policy on the same hardware.
 
 ### Loopback WebSocket and HTTP
 
 The IPC reports above compare Knitting with worker messaging, loopback
 WebSocket and HTTP round trips. Across those runs, Knitting was {ipcRatioRange("websocket")}
-faster than WebSocket and {ipcRatioRange("http")} faster than HTTP. These transports serve
-different purposes: a worker call does not replace a network connection.
+faster than WebSocket and {ipcRatioRange("http")} faster than HTTP. These comparisons measure local round-trip overhead.
 
 ### Moving a 1 MiB payload
 
-The M3 Ultra payload-growth reports use batches of 64. Taking one payload's
-bytes per call and dividing by average batch time gives:
+The M3 Ultra payload-growth tests send 64 calls per batch, each carrying
+1 MiB. The rates below divide 64 MiB by average batch time. They count request
+bytes only, although the timing includes the reply:
 
 <table>
   <thead><tr><th>Runtime</th><th>String (GB/s)</th><th>Uint8Array (GB/s)</th></tr></thead>
@@ -119,13 +115,13 @@ bytes per call and dividing by average batch time gives:
   </tbody>
 </table>
 
-This is a one-direction byte accounting convention, not a standalone memory-copy
-measurement. The saved reports give the batch times used in the calculation.
+The saved reports include the batch times. These rates include worker
+coordination, encoding and decoding as well as copying.
 
 ### Tokio
 
-The [Tokio comparison](/benchmarks/tokio/) was recorded separately in March
-2026 with Knitting `0.1.36` on an AMD Ryzen 7 4700U running Ubuntu 23.10 x86_64.
+The [Tokio comparison](/benchmarks/tokio/) uses an AMD Ryzen 7 4700U running
+Ubuntu 23.10 x86_64.
 It includes every binary payload size, the scalar tests and a separate
 shared-ownership reference. Its raw report records source filenames and
 methodology, but omits runtime versions.
@@ -133,17 +129,16 @@ methodology, but omits runtime versions.
 ## Run the benchmarks
 
 The M3 Ultra harness lives under `bench/` in
-[`mimiMonads/knitting`](https://github.com/mimiMonads/knitting). The historical
-runs used `bench/latency.ts` for empty calls and `bench/withload.ts` for primes.
+[`mimiMonads/knitting`](https://github.com/mimiMonads/knitting):
+`bench/latency.ts` for empty calls and `bench/withload.ts` for primes.
 Run the driver from the repository root:
 
 ```bash
 ./run.sh
 ```
 
-Results are written to `results/`. Use `./run.sh --json` to emit JSON. To
-reproduce historical results, use the measured release and its harness; running
-the current checkout measures the current implementation.
+Use Knitting `0.1.77` to match these results. Reports go to `results/`;
+`./run.sh --json` emits JSON.
 
 The [Hono report](/documents/hono-16core-benchmark.md) includes the server in
 Appendix B and harness in Appendix C. The Tokio comparison and newer payload

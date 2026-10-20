@@ -7,6 +7,9 @@
 
 export { docsKnittingVersion } from "./version";
 
+// Release checked against the published measurements. Keep source run metadata intact.
+export const benchmarkKnittingVersion = "0.1.77";
+
 export const BENCH_REPO = "https://github.com/mimiMonads/knitting-vs-tokio-bench";
 
 export type RuntimeId = "node" | "deno" | "bun";

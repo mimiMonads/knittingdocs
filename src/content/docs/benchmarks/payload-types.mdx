@@ -9,16 +9,31 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 import BenchRunInfo from '../../../components/bench/BenchRunInfo.astro';
 import TypeCostChart from '../../../components/bench/TypeCostChart.astro';
 
-Each call sends one value to a worker whose task is `(v) => v`, then waits for
-the value to come back. The worker does no work, so the time is what Knitting
-spends moving that value in both directions. Every binary type carries the same
-1 KiB, so those rows compare directly.
+Measured with Knitting `0.1.77`.
+
+Each call sends a value to a worker that returns it unchanged. The measured
+time covers encoding, transport and decoding in both directions. All binary
+values contain 1 KiB.
+
+## What the runs show
+
+- **Batching improves throughput.** With 100 primitive calls in flight,
+  Node.js and Bun process 2–6× as many calls per second as with one at a time.
+- **Deno’s single calls have higher overhead.** Its primitives take roughly
+  ten times as long as on Node.js and Bun. With 100 calls in flight, their
+  cost per call is close to Node.js.
+- **Errors cost the most.** `Error` is the slowest type on every runtime at
+  both batch sizes.
+- **Binary views vary by runtime.** With 100 calls in flight, `Uint8Array`
+  takes about half the time of `Float64Array` on Node.js; Bun favors `Float64Array`.
+
+These differences exceeded the spread between runs.
 
 <BenchRunInfo suite="types" />
 
-The chart and table on this page are generated from those runs when the site is
-built. With 100 calls in flight, a row shows the time for the whole batch
-divided by 100.
+The charts show median time per call and the range across runs. The second
+tab divides batch time by 100 to compare throughput; it does not show the
+latency of an individual call.
 
 <Tabs>
   <TabItem label="One call at a time">
@@ -29,25 +44,6 @@ divided by 100.
   </TabItem>
 </Tabs>
 
-## What the runs show
-
-Each point compares medians, and each difference is larger than the spread
-between runs. Smaller differences did not repeat, so they are left out.
-
-- **Batching matters more than the type.** On Node.js and Bun, sending a
-  `number`, `boolean`, `null`, `undefined` or small `bigint` costs two to six
-  times less per call with 100 calls in flight than one call at a time.
-- **On Deno, a single call is expensive whatever it carries.** One call at a
-  time, Deno's primitives cost almost as much as its 1 KiB binary types, and
-  roughly ten times what Node.js and Bun take for the same values. Most of that
-  cost is per call rather than per byte: with 100 calls in flight, Deno's
-  primitives cost about the same as Node's.
-- **`Error` is the most expensive type everywhere.** It is the slowest row on
-  every runtime at both batch sizes, well clear of the next one.
-- **The cheapest 1 KiB view depends on the runtime.** With 100 calls in flight,
-  `Uint8Array` costs about half as much as `Float64Array` on Node.js, and on Bun
-  it is the other way round.
-
 ## Run it yourself
 
 The suite lives in
@@ -57,6 +53,7 @@ The suite lives in
 git clone https://github.com/mimiMonads/knitting-vs-tokio-bench
 cd knitting-vs-tokio-bench
 npm install
+npm install knitting@0.1.77
 node scripts/bench.mjs types
 node scripts/tables.mjs
 ```

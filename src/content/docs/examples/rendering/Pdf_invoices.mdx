@@ -90,6 +90,8 @@ if (isMain) {
 
 ## Optional benchmark
 
+Measured with Knitting `0.1.77`.
+
 :::info
 <RuntimeRunTabs
   bunCommand="bun src/bench_invoice_pdf.ts"
@@ -121,23 +123,13 @@ PDF contents; use a byte comparison or content hashes when verifying identical o
 
 ## Worker count and scaling
 
-Four workers completed this batch about `1.6x` faster on the measured four-core
-laptop. An arithmetic workload using the same pool and batching reached `4.8x`
-in a separate comparison. That suggests a workload
-limit, but does not identify its cause. Profile layout, serialization, and
-allocation costs before deciding whether more workers will help.
+Four workers completed the 200-invoice batch about `1.6×` faster than
+the host on a four-core laptop running Bun 1.4. More workers may not improve
+the result: layout, allocation and returning PDF bytes all contribute to the
+elapsed time.
 
-Throughput and request latency tell different parts of the story:
-
-- **Throughput:** the pool completed the batch about `1.6x` faster.
-- **Request latency:** moving layout work to workers can keep other requests
-  responsive. This batch benchmark does not measure HTTP latency; test that
-  separately under your expected traffic.
-
-:::note
-Measured on a 4-core laptop with Bun 1.4. Measure both throughput and
-request latency on your own hardware.
-:::
+For a server, also measure request latency under load. This batch test does
+not measure how offloading PDF work affects other requests.
 
 ## Code
 
@@ -155,8 +147,5 @@ request latency on your own hardware.
 
 ## When this matters
 
-Invoices, statements, shipping labels, exam papers, contracts -- anything a product
-generates in bulk on a schedule, or on demand while a user waits. The work is CPU-bound and
-produces bytes you have to hand back, making it a useful workload for a worker pool. Pay
-attention to the return type: one contiguous buffer per call, not a structure with
-typed arrays buried inside it.
+Use this pattern for generating documents in bulk or serving PDF downloads.
+Return each PDF as one contiguous buffer so the host can send the bytes directly.

@@ -88,6 +88,8 @@ If you run this with Deno and see `Uncaught SyntaxError: Unexpected token '<'`, 
 
 ## Optional benchmark
 
+Measured with Knitting `0.1.77`.
+
 :::info
 <RuntimeRunTabs
   bunCommand="bun src/bench_react_ssr.ts"
@@ -141,23 +143,13 @@ equal lengths do not prove that the HTML content is identical.
 
 ## Sizing the pool
 
-This example used to run one worker plus an inliner, and with that configuration it was
-slower than rendering on the host. Two things were working against it:
+Four workers without an inliner were roughly `1.8–1.9×` faster than the host
+in this batch test, with about two thirds less allocation per iteration.
+One worker plus an inliner was slower: it paid transport costs while the
+inliner kept rendering on the host.
 
-- **A single worker still pays the full transport cost.** A single lane pays the
-  full cost of moving a payload out and HTML back, and gets one core's worth of
-  rendering in exchange. Multi-worker pools also enable shared-submit work
-  stealing by default, which a one-worker pool never engages.
-- **The inliner takes back the thread you were trying to free.** It renders on
-  the host between dispatches, so the event loop you moved SSR off is busy
-  again -- and it is the same thread awaiting every result.
-
-Dropping the inliner and moving to four workers made the same benchmark
-roughly `1.8-1.9x` faster than the host, and cut per-iteration
-allocation by about two thirds. Choose `threads` from your own measurements:
-the right value depends on your component, your payloads, and what else the
-host is doing. Start at 2-4, measure, and only
-add the inliner if it earns its place on your workload.
+Start with 2–4 workers and measure your component and payloads. Add the inliner
+only if it improves the result.
 
 ## Keeping rendering off the request thread
 

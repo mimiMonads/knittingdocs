@@ -147,6 +147,10 @@ export const ipcRatioRange = (arm: 'websocket' | 'http') => {
 };
 const idleValues = row(honoReport, 'threads: 15 idle cores');
 export const idleCores = { before: Number(idleValues[2]), after: Number(idleValues[3]) };
-const repeatLine = honoReport.split('\n').find((line) => line.startsWith('{') && JSON.parse(line).tag === 't1s50');
+const repeatLine = honoReport.split('\n').find((line) => {
+  if (!line.startsWith('{')) return false;
+  const run = JSON.parse(line);
+  return run.tag === 't1s50' && run.mode === 'rate';
+});
 if (!repeatLine) throw new Error('Missing Hono one-worker repeat');
 export const repeatCores: number = JSON.parse(repeatLine).cores;

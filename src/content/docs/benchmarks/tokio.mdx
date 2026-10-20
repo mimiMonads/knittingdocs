@@ -14,44 +14,39 @@ import batchAvgUint8Array1MiB from '../../../assets/tokio/batch_avg_uint8array_1
 import uint8ArraySizeSweep from '../../../assets/tokio/uint8array_size_sweep_avg_log.svg?url';
 import uint8ArrayArcCompareSizeSweep from '../../../assets/tokio/uint8array_arc_compare_size_sweep_avg_log.svg?url';
 
-This page compares Tokio and Knitting on Bun, Node.js, and Deno using the same batch-oriented echo benchmark.
+This benchmark compares Rust’s Tokio with Knitting `0.1.77` on Bun, Node.js
+and Deno. Each test sends a value to one worker and receives it back.
 
 The result changes with payload size: Tokio leads for 1–16 KiB and 1 MiB
 binary payloads, while Knitting on Bun and Node.js is slightly ahead at
-32–512 KiB. The charts below show the full range.
+32–512 KiB. The charts show average time per batch; lower is better.
 
 Benchmark source: [`mimiMonads/knitting-vs-tokio-bench`](https://github.com/mimiMonads/knitting-vs-tokio-bench).
 
 ## What this benchmark measures
 
-Each test sends a value to a worker, echoes it back, and measures the full batch round trip. The payloads are:
+Each batch waits for every reply. The tests cover:
 
 - `f64` values
 - `1 MiB` strings
-- `1 MiB` `Uint8Array` values
 - `Uint8Array` values from `8 B` to `1 MiB`
 - a separate `Arc<Vec<u8>>` sweep for small shared-byte payloads
 
-The results are from one run of Knitting `0.1.36` on Ubuntu 23.10, `x86_64`, with an
-AMD Ryzen 7 4700U, recorded in March 2026. Every runtime uses the same batch sizes (`1`, `10`, and `100`), warmup, measured iterations, and percentile reporting.
+The machine is an AMD Ryzen 7 4700U running Ubuntu 23.10 x86_64. Every runtime
+uses the same batch sizes (`1`, `10`, and `100`), warm-up, measured iterations
+and percentile reporting.
 
-The saved report names the source files but does not record the Rust, Tokio
-or JavaScript runtime versions. These historical results have not been repeated
-on the current Knitting release.
-
-The [Performance page](/benchmarks/introduction/#binary-round-trips-are-comparable-to-tokio)
-uses the size-sweep averages from this report. The M3 Ultra worker tests on
-[Results and methodology](/benchmarks/results/) were recorded on different hardware.
+The report names source files but omits Rust, Tokio and JavaScript runtime versions.
 
 ## Small payloads: `f64`
 
-For small scalar values, the JavaScript runtimes are faster on average in this run:
+For an 8-byte number, the fastest runtime depends on batch size:
 
-- At `n=1`, Node.js is lowest at `6.63 µs`, followed by Bun, Tokio, and Deno.
-- At `n=10`, Deno is lowest at `11.97 µs`; Bun and Node.js follow, with Tokio at `27.50 µs`.
-- At `n=100`, Node.js and Deno remain ahead of Tokio, while Bun sits between them.
+- With one call, Node.js is fastest at `6.63 µs`, followed by Bun, Tokio and Deno.
+- With 10 calls, Deno is fastest at `11.97 µs`, compared with Tokio’s `27.50 µs`.
+- With 100 calls, Node.js is fastest at `62.33 µs`; Deno and Bun also finish ahead of Tokio.
 
-Tokio does have the best `p99` at `n=1`. Bun has the best `p99` at `n=10` and `n=100`.
+For p99 batch time, Tokio leads at `n=1` and Bun leads at `n=10` and `n=100`.
 
 <img
   src={batchAvgNumberF64}
@@ -65,13 +60,12 @@ The chart uses a logarithmic y-axis. Lower is better; the exact values are in th
 
 ## Large payloads: `1 MiB`
 
-The picture changes once each message is `1 MiB`:
+At `1 MiB`, Tokio leads most comparisons:
 
 - Tokio is fastest for the large-string test at `n=1` and `n=100`. Bun is just ahead at `n=10`.
 - Tokio leads the `Uint8Array` test at every batch size: `272.81 µs`, `4.64 ms`, and `37.83 ms`.
-- Node.js and Deno fall further behind as payload materialization becomes a larger part of the round trip.
 
-These timings include the trip to the worker and the trip back, including the work needed to materialize the payload on both sides.
+These timings include copying the payload on both the request and the reply.
 
 <Tabs>
   <TabItem label="String">
@@ -108,11 +102,13 @@ Bun is fastest from `8 B` through `512 B`. Tokio takes the lead from `1 KiB` thr
   loading="lazy"
 />
 
-Both axes are logarithmic, so the chart is showing changes across several orders of magnitude. The key trend is the transition from fixed per-message overhead to payload-copying cost.
+Both axes use a logarithmic scale to show the full range of sizes and timings.
 
 ## A separate shared-ownership reference
 
-The next chart is intentionally different. Tokio uses `Arc<Vec<u8>>`, so sending a value mostly increments a reference count instead of copying the bytes. This is useful as an upper-bound reference for shared ownership, but it is not the default apples-to-apples byte comparison.
+Tokio uses `Arc<Vec<u8>>` here: sending a value increments a reference count
+instead of copying bytes. This measures shared ownership separately from the
+copying tests above.
 
 At `8 B` through `256 B`, Bun is still faster than the Tokio `Arc` path. At `512 B`, the two are close: `74.78 µs` for Bun versus `79.51 µs` for Tokio.
 
@@ -124,25 +120,22 @@ At `8 B` through `256 B`, Bun is still faster than the Tokio `Arc` path. At `512
   loading="lazy"
 />
 
-Read this chart as “how close can normal transport get to shared ownership?” For the fair default comparison, use the regular `Uint8Array` sweep above.
+<span id="how-fair-is-the-comparison"></span>
 
-## How fair is the comparison?
+## What each side does
 
-The benchmark keeps the important parts aligned:
+Both implementations:
 
-- Both sides create the work up front and wait for the whole batch to finish.
-- Both use one worker thread, so both process the batch with the same worker count.
-- The default string and byte paths pay for a full round trip. Tokio clones on send and clones again for the worker reply rather than transferring ownership of the original allocation.
+- Prepare inputs before timing.
+- Use one worker thread and wait for the whole batch.
+- Copy strings and bytes on both send and reply.
 
-The deliberate difference is memory management. Tokio's `String` and `Vec<u8>` paths allocate and copy with `clone()`. Knitting copies into preallocated shared memory and manages those regions itself. That cost is part of what this benchmark is trying to measure, so it is left in the numbers rather than normalized away.
-
-The `Arc<Vec<u8>>` test is kept separate because shared ownership does less work than the normal byte path.
+Tokio allocates and copies `String` and `Vec<u8>` with `clone()`. Knitting
+copies into preallocated shared memory. The timings include those costs.
 
 ## Why the results change with payload size
 
 Knitting keeps transport data in reused typed-array-backed buffers. Small primitive values fit in the per-call header, while larger values spill into a preallocated shared payload buffer. Fixed worker lanes and a small allocation bookkeeping layer reduce general-purpose allocation in the hot path.
-
-That design has a tradeoff: it adds implementation complexity and memory bookkeeping. The payoff shows up most clearly when copying and allocating a large payload would otherwise dominate the round trip.
 
 ## Full raw report
 

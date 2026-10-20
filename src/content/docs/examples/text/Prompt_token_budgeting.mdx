@@ -121,6 +121,8 @@ measures token counting and never exercises the trimming logic.
 
 ## Optional benchmark
 
+Measured with Knitting `0.1.77`.
+
 :::info
 <RuntimeRunTabs
   bunCommand="bun src/bench_prompt_token_budget.ts"
@@ -152,36 +154,18 @@ summary
 
 ## Why more workers make this slower
 
-This workload stops getting faster after a few workers. The measurements below
-show why choosing a pool size requires more than counting cores.
+On the four-core laptop used here, three workers plus the inliner completed
+the batch about `3×` faster than the host. Eight workers were consistently
+slower than three or four; one worker was about as fast as the host.
 
-On a 4-core laptop the best setting measured here was **three workers plus the
-inliner** -- four lanes for four cores -- at roughly `3x`. Beyond that, performance drops: eight workers measured consistently slower than three or four. One
-worker performed about the same as the host, within measurement noise.
+Each worker loads its own `tiktoken` encoder and BPE table. Resident memory
+rose from 67 MB without workers to 630 MB with eight workers. These copies
+can increase cache pressure, so check memory use as well as throughput.
 
-With plain arithmetic in place of tokenization, the same pool and batching
-reached `4.8x` at eight threads on the same laptop. This suggests that the
-tokenizer is limiting scaling in this workload.
-
-The reason is that `tiktoken` is a WASM module with a large BPE table, and every
-worker instantiates **its own copy**. Resident memory here went from 67 MB at
-baseline to 630 MB with eight workers -- roughly 55-60 MB per worker. Those
-tables are not shared and exceed the available CPU cache. Adding workers can
-therefore increase cache pressure without improving throughput.
-
-Two practical consequences:
-
-- **Size the pool for the tokenizer, not for `os.cpus().length`.** Start at 2-4
-  lanes and measure. The inliner helped in this benchmark -- it adds a lane without adding another encoder-sized worker.
-- **Keep many more batches than lanes.** Batching amortizes dispatch, but one
-  giant batch per lane cannot rebalance. At 1,000 requests in batches of 250 the
-  pool measured *slower than the host* (`0.81x`); the same work in batches of 32
-  was the fastest setting tried.
-
-:::note
-These ratios were measured on one thermally limited laptop. On your own
-machine, check both throughput and memory use as you add workers.
-:::
+Batch size also mattered. Batches of 32 were fastest among the settings tried;
+batches of 250 left too few tasks to balance across workers and were slower
+than the host (`0.81×`). Start with 2–4 processing lanes and keep enough
+batches for workers to share the load.
 
 ## Code
 

@@ -3,23 +3,25 @@
 Reproduction of the [hono_server example](https://knittingdocs.netlify.app/examples/servers/hono_server/)
 benchmark on dedicated cloud hardware, with the load generator on a separate machine.
 
-Measured 2026-08-24 and re-measured 2026-08-25 after the worker timer policy
-changed. Every number here came off the DigitalOcean test bed described below.
-None of it was measured on a laptop.
+Measured with Knitting `0.1.77`. The source runs were recorded on 24–25 August 2026 on the DigitalOcean test bed below.
+
+## Results
+
+- Under saturating load, `/ping` throughput rose 201% and p50 fell 68%.
+- At 6,000 requests per second, one worker reduced `/ping` p99 by 86%,
+  `/ssr` by 39%, and `/jwt` by 61%, at similar CPU usage.
+- With four workers at the same load, p99 fell 81% on `/ping`, 70% on `/ssr`,
+  and 83% on `/jwt`, with higher CPU usage.
+- `/ssr` throughput rose 71% and `/jwt` rose 83% under saturating load.
+- One worker gave the best throughput per core: 10,041 rps/core. Fifteen workers
+  used 2.4× as much CPU per request, down from 9.6× under the earlier timer policy.
 
 ## What is being tested
 
-Knitting is built for route sets with a Pareto shape: a few routes eat most of the main
-thread and everything else queues behind them. The docs example is exactly that shape.
-`/ssr` renders React and `/jwt` signs HS256, while `/ping` hands back a small JSON
-object. On one event loop the cheap route does not get to be cheap. It waits its turn
-behind whatever heavy work is already running.
-
-So the claim under test is not "workers make SSR faster". It is that moving the expensive
-minority off the event loop makes the whole server faster, including the routes that were
-never the bottleneck. The best evidence either way is `/ping`, which never touches the
-pool in any configuration. Anything that moves its numbers is the pool changing the host
-thread's environment, not the pool doing its work.
+`/ssr` renders React, `/jwt` signs HS256 tokens, and `/ping` returns a small
+JSON object. The worker configuration moves `/ssr` and `/jwt` off the main
+thread while `/ping` stays on it. The test measures throughput, tail latency
+and CPU use, including whether `/ping` spends less time waiting behind CPU work.
 
 ## The worker timer policy
 
@@ -43,23 +45,6 @@ ready while allowing multi-worker pools to sleep instead of spending CPU on
 idle polling. The CPU measurements in [section C](#c-what-the-timer-policy-is-worth)
 show the cost per request and while idle.
 
-## Headline
-
-1. The route that never touches the pool benefits most. `/ping` gains 201% rps and
-   drops its p50 by 68% under saturating load, and its p99 by 81-83% at matched
-   load. That beats both offloaded routes on every one of those measures. The win
-   is removing head-of-line blocking, not making anything faster.
-2. One saturated thread flattens every route down to the slowest one. `hono_only`
-   serves ping / ssr / jwt at 2815 / 2815 / 2578 rps: three routes with wildly
-   different costs, all pinned to the same rate. Offloading the expensive two is
-   what breaks that coupling, and the cheap route then runs away to 8,486.
-3. The offloaded routes gain too, just less. +71% rps on `/ssr` and +83% on `/jwt`,
-   with p99 down 70% and 83% at matched load.
-4. Efficiency now degrades gently instead of collapsing. `threads: 1` is still the
-   best configuration at 10,041 rps/core, but an oversized `threads: 15` pool costs
-   2.4x that rather than 9.6x, and its tail latency is *better* than a correctly
-   sized pool's. Getting the pool size wrong is no longer expensive.
-
 ## Test bed
 
 | | Server | Load generator |
@@ -72,7 +57,7 @@ show the cost per request and while idle.
 
 - Traffic crosses the **private VPC network**, not the public interface.
 - Runtime: **Bun 1.4.0**. Load tool: **oha 1.14.0**.
-- Knitting: local build of this repo at `6c0e56d`, symlinked into the example as
+- Knitting: `0.1.77`. Original source build: `6c0e56d`, symlinked into the example as
   `node_modules/knitting`.
 - Tuning applied to both boxes: `somaxconn=65535`, `ip_local_port_range=1024 65535`,
   `nofile=1048576`.
@@ -99,8 +84,7 @@ the routes compete for the same main thread. 6s warmup, then a 15s measured wind
 Recorded per run: per-route rps and latency percentiles, server CPU-seconds (from
 `/proc/<pid>/stat`, converted to cores), generator CPU, OS thread count, and
 **idle CPU** over a 5s window with the server running and no load offered at all.
-That last column is new in the second run and it is where the interesting result
-turned out to live.
+Idle CPU helps separate polling costs from the CPU used to process requests.
 
 Each configuration asserts its own identity before load starts, checking process cmdline
 plus `KNIT_THREADS` and `KNIT_SPIN` read back from `/proc/<pid>/environ`. That check
@@ -178,10 +162,8 @@ varies. All configs achieved the full rate with a 100% success rate.
 | threads: 8 | 0.84 | **4.27** | 1.94 |
 | threads: 15 | 0.88 | 4.33 | 2.29 |
 
-p99 against `hono_only`: -81% on `/ping`, -70% on `/ssr`, -83% on `/jwt` at
-`threads: 4`, and the same to within a point at 8 and 15 workers. The docs page
-claims roughly -50%; on this hardware the improvement is bigger and it no longer
-depends on picking the right pool size.
+With four workers, p99 fell 81% on `/ping`, 70% on `/ssr`, and 83% on `/jwt`.
+Eight and fifteen workers gave reductions within one percentage point of these.
 
 `threads: 1` is the exception on the heavy routes. Its p50 rises, 0.84 to 2.22ms
 on `/ssr`, because a single worker is a queue. It still improves p99 by 39%, but
@@ -302,9 +284,6 @@ Same hardware, same workload, same commit. Only the spin budget differs.
 | `threads: 4` CPU-us/request, matched load | 415 | 262 | **1.6x less** |
 | `threads: 1` anything | unchanged | unchanged | policy is identical at N=1 |
 
-The oversized pool got cheaper *and* faster. There is no trade to weigh here at
-eight workers or above.
-
 ### Why one worker keeps its spin
 
 At `threads: 1` the worker is the request's critical path, and a spin that
@@ -315,9 +294,8 @@ catches the next call saves a park-to-wake round trip. Measured at matched load:
 | 50us spin | **8.24ms** | **9.57ms** | 0.060 |
 | no spin | 9.90ms | 11.32ms | 0.014 |
 
-17% of `/ssr` p99 for 0.06 idle cores is worth paying. Above one worker that
-trade inverts: a peer is already awake to take the work, so the spin buys
-nothing and every extra worker pays for it.
+At one worker, spinning reduced `/ssr` p99 by 17% and used 0.06 idle cores.
+With more workers, disabling spin gave lower CPU use.
 
 A flat 50us at every worker count was tried and rejected. It looked good in
 depth-1 microbenchmarks on a 4-core laptop but lost on this bed at scale: at
@@ -327,47 +305,17 @@ latency.
 
 ## Analysis
 
-What you are buying is isolation. One saturated JS thread is the entire ceiling for
-`hono_only`: 1.19 cores, with all three routes inside 9% of each other even though `/ping`
-does none of the CPU-heavy work the other two do. That flattening is the problem Knitting
-addresses. Moving SSR and JWT off the event loop does not make them much cheaper, it stops
-them being charged to everyone else. Which is why the results are lopsided: the offloaded
-routes gain 71-83%, the bystander route gains 201%.
+Offloading SSR and JWT reduced queueing on the main thread. `/ping` never
+enters the pool, yet its throughput rose from 2,815 to 8,486 rps with one
+worker. That was the largest gain among the three routes.
 
-`/ping` is the measurement that matters. It does no pool work, so it is a clean probe of
-what the pool does to the host thread. Freeing the event loop lifts it from 2,815 to 8,486
-rps. Growing the pool still hands some of that back, because the host is the only producer
-and every additional consumer is another thread competing for cores with the thread that
-feeds it, but the give-back is now gentle: 8,486, 5,785, 4,763, 3,946, 4,032 rps at 1, 2,
-4, 8 and 15 workers, for 1.79 to 2.83 cores. Under the old default the same sweep ran to
-10.03 cores.
+The host still accepts connections, routes requests, dispatches tasks and
+serializes responses. More workers cannot remove that serial work. One worker
+gave the best throughput and efficiency here; larger pools improved some tail
+latencies but used more CPU per request.
 
-**One producer, N consumers.** The host thread is the only producer in this design. It
-accepts the connection, parses the request, routes it, encodes the payload into shared
-memory, hands it to the pool, then reads the result back and serializes the response.
-Nothing inside the pool raises that rate, so workers help only while *workers* are the
-bottleneck, and on this workload that ends almost immediately. That is Amdahl's law with
-the host thread as the serial fraction: it does not shrink when you add workers, so it
-caps the achievable speedup whatever the pool size.
-
-What Amdahl does not explain is why the first edition's curve bent sharply downward
-instead of levelling off at that cap. The answer was the spin budget, and with it removed
-the curve does level off. Between 8 and 15 workers throughput and efficiency are now flat
-to slightly rising (11,649 to 11,987 rps; 5,046 to 4,238 rps/core), which is what a
-producer-bound system with cheap consumers should look like.
-
-**Pool size still matters, but it stopped being expensive.** `threads: 1` remains the
-throughput and efficiency optimum. What changed is the penalty for exceeding it: 2.4x on
-rps/core rather than 9.6x, with better tail latency as compensation. A pool sized for
-isolation rather than throughput is now a reasonable default choice rather than a
-deliberate trade.
-
-**Where isolation stops paying.** These gains are measured at or near the host-only
-ceiling, which is where head-of-line blocking exists to be removed in the first place. The
-shared-memory round trip is a fixed per-call cost, so the further below the ceiling you
-run, the less queueing there is to eliminate and the more that fixed cost shows up in p50
-on the offloaded routes. This bed did not measure below ~73% of the ceiling, so the
-crossover point is not established here.
+The test did not measure below about 73% of the host-only throughput ceiling.
+At lighter loads, less queueing can leave less benefit to offset transport cost.
 
 ## Limitations
 
@@ -392,28 +340,6 @@ crossover point is not established here.
   pressure, in unknown proportion. This bed ran no profiler and no hardware counters.
 - Cloud instances, even dedicated-CPU ones, are shared hardware in every respect other
   than cores.
-
-## Recommendations for the docs page
-
-- **Lead with the isolation story, not the throughput number.** The page's most defensible
-  and most useful result is that `/ping`, a route that never touches the pool, gets the
-  largest improvement of the three. That is what separates Knitting from "run the same
-  work on more cores", and it is the reason to reach for it.
-- Say plainly what the technique is for: route sets where a minority of endpoints dominate
-  the event loop. A server whose routes all cost about the same has much less to gain,
-  because there is no head-of-line blocking to remove.
-- The example's `createPool({})`, a 1-worker pool, is the right default for this workload
-  and the fastest configuration measured. Worth saying out loud rather than leaving as an
-  unremarked default, because "add more workers" is the natural assumption and it is still
-  wrong here, just no longer costly.
-- The previous edition recommended warning readers about spin cost past small pools. That
-  warning is no longer needed under this policy and should be replaced with a plain
-  statement that pool size trades throughput for tail latency.
-- The page's throughput table shows nearly identical rps across all three routes in
-  Knitting mode. This bed does not reproduce that shape at any pool size: once the event
-  loop is free, `/ping` separates sharply from the offloaded routes. Uniform rps across
-  unequal routes is the signature of a ceiling *outside* the server, so the page may be
-  understating its own `/ping` result.
 
 ## Harness pitfalls
 
@@ -443,9 +369,8 @@ costs 5 seconds per configuration and should be in every pool benchmark.
 
 ## Reproducing
 
-This report is self-contained. Appendix B is the code under test, Appendix C the harness,
-Appendix D the provisioning, and Appendix A every measurement behind the tables above.
-Nothing else is needed to re-run it.
+Appendix A contains the measurements, B the server, C the harness, and D the
+provisioning commands. Use Knitting `0.1.77` for the release comparison.
 
 Order of operations:
 

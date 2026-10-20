@@ -96,14 +96,12 @@ Indexed 16 arXiv submissions on 4 workers in 162 ms
 
 All three runtimes produce the same 98,845 words.
 
-## The interesting decision is where to cut the job
+<span id="the-interesting-decision-is-where-to-cut-the-job"></span>
 
-Indexing a paper is two steps that look very different. Unpacking the archive is I/O and
-decompression; parsing is string work. The obvious move is to offload the parsing, because
-that is the part that looks like computation.
+## Benchmark: unpacking and parsing
 
-In this benchmark, moving both steps to workers was faster. The following
-comparison measures all three options.
+Measured with Knitting `0.1.77`. The test compares processing on the host,
+offloading parsing alone, and offloading both unpacking and parsing.
 
 :::info
 <RuntimeRunTabs
@@ -133,17 +131,12 @@ summary
    1.67x faster than host: unpack + parse
 ```
 
-The middle row is the one to look at. Offloading the parse -- the part that looks like the
-real work -- bought `1.18x`, because the decompression stayed on the thread you were trying
-to free, and `gunzipSync` blocks it completely while it runs. Sending a **path** instead of
-a payload moves the whole job across, and the gunzip parallelizes along with everything
-else: `1.67x` from the same pool, on the same corpus.
-
-It is also the smaller piece of code. The host never opens an archive, so `loadArchive` is
-called in exactly one place -- inside the task.
+Offloading parsing alone gave a `1.18×` speedup. Sending an archive path to the
+worker moved blocking decompression off the host too, giving `1.67×` on the
+same corpus. The worker also becomes the only caller of `loadArchive`.
 
 ```ts
-// The shape worth copying: the job crosses the boundary as a path.
+// Send the archive path; unpack and parse it in the worker.
 export const indexArchive = task<string, PaperRecord>({
   f: async (path: string) => parsePaperHost(await loadArchive(path)),
 });
@@ -179,13 +172,12 @@ Gunzipping the same sixteen archives inside the pool, changing only the thread c
 | 4       | 37.1 ms               | 32.2 ms                  |
 | 8       | 39.2 ms               | 27.0 ms                  |
 
-`DecompressionStream` is flat. `gunzipSync` starts out slower and then scales, because it
-runs on the worker that called it instead of handing the work to something shared.
+`DecompressionStream` changed little as workers were added. `gunzipSync`
+was slower with one worker but faster with four or eight.
 
 :::caution
-A stage that does not scale sets the ceiling for everything around it. Before blaming the
-pool for a disappointing speedup, time each stage of your task at one worker and at four --
-a stage that does not improve may be limiting the whole pipeline.
+Time unpacking and parsing separately with one worker and with four. If one
+stage barely improves, it can limit the speedup of the whole task.
 :::
 
 ## Real submissions are messy

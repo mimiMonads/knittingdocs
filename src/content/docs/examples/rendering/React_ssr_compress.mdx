@@ -53,6 +53,8 @@ Compression uses built-in `node:zlib` -- no extra packages.
 
 ## Optional benchmark
 
+Measured with Knitting `0.1.77`.
+
 :::info
 <RuntimeRunTabs
   bunCommand="bun src/bench_react_ssr_compress.ts"
@@ -82,17 +84,13 @@ summary
    2.56x faster than worker: render only, host compresses
 ```
 
-The middle row is the interesting one: moving only the render to a worker is
-barely faster than doing everything on the host. You pay to ship the full HTML
-back, and every Brotli call still lands on the thread you were trying to keep
-free. Keeping compression in the
-worker frees the host from that work and reduces the return payload.
+Rendering and compressing in workers took 111 ms per batch, compared with
+294 ms on the host: a `2.65×` speedup. Offloading rendering alone took 285 ms
+because the host still compressed every response and received the full HTML.
 
-Brotli is also far more expensive than `renderToString` alone, which changes the
-pool shape: the plain SSR example is faster **without** an inliner, while this
-one is faster **with** one. The host spends most of its time waiting here, so
-giving it a share of the work pays. That is a workload property, not a rule --
-measure it on yours.
+This test was faster with an inliner, which let the host share the CPU work.
+The plain SSR example was faster without one. Measure rendering and
+compression together when choosing the pool configuration.
 
 <DontDoubleParseTip />
 
@@ -109,5 +107,5 @@ measure it on yours.
 
 ## Compression placement matters
 
-Where you compress affects both throughput and data transfer. If you compress on the worker, you send a small compressed buffer back to the host. If you compress on the host, you first transfer the full uncompressed HTML string across the thread boundary, then compress it. For a server, measure rendering and compression together on the worker to see
-whether that reduces request latency and transfer overhead.
+Compressing in the worker returns a small buffer instead of the full HTML.
+For an HTTP server, check request latency under load as well as batch throughput.
