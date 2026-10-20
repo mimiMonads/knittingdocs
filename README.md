@@ -29,7 +29,7 @@ npm run preview
 Install the runtime package in an application with:
 
 ```bash
-npm install knitting@0.1.74
+npm install knitting@0.1.77
 ```
 
 The normal task API is unchanged:
