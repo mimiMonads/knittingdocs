@@ -22,6 +22,17 @@ export const COMPATIBILITY = [
   "Check the application's installed package and runtime versions before generating code. Options marked `since` require at least that release and may be newer than this baseline. Experimental examples state their own tested versions. Repository main may differ from the published package; verify that release's exports and types.",
 ].join("\n\n");
 
+export const CPU_POLICY = [
+  "## CPU policy and server workloads",
+  "",
+  "Knitting's defaults favor conservative CPU use for server workloads: leave capacity for the host event loop, other requests, and other services when workers have no useful work. The goal is useful work per CPU, rather than the lowest possible roundtrip latency for an empty task.",
+  "",
+  "- A single worker defaults to a 50-microsecond spin budget before parking; pools with multiple workers default to zero spin and park when no work is available. Increasing `threads` changes the default waiting policy as well as parallelism.",
+  "- The host uses completion doorbells where supported, with polling fallback. Worker parking and host completion notification are separate mechanisms.",
+  "- Sleeping workers must wake for new work. Tiny, intermittent calls can therefore have higher latency than with spinning workers; this alone does not establish poor compute throughput or CPU efficiency.",
+  "- Keep the defaults as a starting point for servers. If wake-up latency dominates, benchmark `worker.timers.spinMicroseconds`; a larger budget can reduce wake delays while spending more CPU waiting. Measure idle CPU, total CPU per completed request, throughput, and p50/p99 under realistic bursts and idle gaps. A continuous empty-task benchmark alone cannot choose the best server configuration.",
+].join("\n");
+
 export const IMPLEMENTATION_CONTRACT = [
   "## Before writing code",
   "",
@@ -81,7 +92,7 @@ export const ESSENTIALS = [
   "- Adaptive claims (since 0.1.74): `host.stealSingleClaimMicroseconds` defaults to 0, which turns adaptation off. Each worker measures average task cost per batch and remembers the highest recent average, letting that estimate fall gradually as more batches run. When it meets or exceeds your threshold, the worker takes one ticket at a time; below it, the worker takes up to `stealRegionLanes`. Try 20 microseconds when you have slow and fast tasks, then check p99 latency and throughput. This only applies to ticket pools with more than one worker. A ticket batch width of 1 skips timing. Negative, NaN, or infinite thresholds cause pool creation to throw when stealing is enabled.",
   "- Await-then-compute tasks (since 0.1.76): bundlers, minifiers, and other async tasks that await input before doing CPU-heavy work can bunch their continuations on one stealing worker. Try `worker: { maxAwaitingTasks: 2 }` to leave more queued tasks available for peers; synchronous tasks do not use a slot. See the Work stealing guide.",
   '- Experimental automatic async cap (0.1.77): `worker: { maxAwaitingTasks: "auto", unravel: { initialTasks: 2, maxTasks: 256 } }` adjusts each worker\'s cap from async population and measured waiting/CPU time. Requires Node or supported Bun thread workers; process workers, compiled workers, Deno, Bun on Windows, and tasks with configured timeouts reject it. Use `debug: { unravel: true }` to inspect cap changes. See Creating pools for the options.',
-  "- CPU efficiency is a design goal: useful task work should consume CPU; waiting, polling, unnecessary copying, and oversized pools should not. A single worker spins 50us before parking because it is on the request's critical path; multi-worker pools park immediately, since a peer is already awake to take the work. The host doorbell uses the runtime's completion wake path — Atomics on Node/Bun, FFI on Deno when allowed, and a process-local transport for process workers — with polling fallback. Node threads can opt into `host.nativeDoorbell`. Expect a bigger pool to raise CPU per request without raising throughput when the host is the only producer (a server), so size `threads` from measurements, not from core count — see the Multi-threading guide.",
+  "- CPU efficiency is a design goal; see CPU policy and server workloads above for the spin/park defaults and their latency trade-off. The host doorbell uses the runtime's completion wake path — Atomics on Node/Bun, FFI on Deno when allowed, and a process-local transport for process workers — with polling fallback. Node threads can opt into `host.nativeDoorbell`. A bigger pool can raise CPU per request without raising throughput when the host is the bottleneck, so size `threads` from measurements, not from core count — see the Multi-threading guide.",
   "- Cleanup: `using pool = createPool(...)` disposes the pool at scope exit. `await pool.shutdown()` still exists to close it earlier or to await teardown.",
   "- Keep a server pool alive across requests; do not create and dispose workers on every request. Await outstanding calls before leaving a `using` scope. If your runtime or build pipeline does not support `using`, use `try/finally` with `await pool.shutdown()`.",
   "",

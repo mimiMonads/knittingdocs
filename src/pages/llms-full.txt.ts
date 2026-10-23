@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import {
   AGENT_GUIDANCE,
   COMPATIBILITY,
+  CPU_POLICY,
   cleanBody,
   docUrl,
   ESSENTIALS,
@@ -26,6 +27,8 @@ export const GET: APIRoute = async ({ site }) => {
     COMPATIBILITY,
     "",
     POSITIONING,
+    "",
+    CPU_POLICY,
     "",
     ESSENTIALS,
     "",
