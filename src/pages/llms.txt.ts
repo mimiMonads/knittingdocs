@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import {
-  COMPATIBILITY, docUrl, fileUrl, GITHUB, IMPLEMENTATION_CONTRACT,
+  COMPATIBILITY, CPU_POLICY, docUrl, fileUrl, GITHUB, IMPLEMENTATION_CONTRACT,
   loadDocs, markdownUrl, TAGLINE, TITLE,
 } from "../lib/llms";
 
@@ -21,6 +21,8 @@ export const GET: APIRoute = async ({ site }) => {
     "## Start here", "",
     ...["start/installation", "start/quick-start", "guides/defining-tasks", "guides/creating-pools"].map((id) => `- ${link(id)}`),
     "", IMPLEMENTATION_CONTRACT, "",
+    CPU_POLICY, "",
+    `Read ${link("guides/multi-threading")} for worker timers and completion doorbells, and ${link("guides/performance")} for workload tuning.`, "",
     "## Find documentation by task", "",
     "For an implementation, use the minimal example and fetch only the guides needed. For debugging or optimization, read the relevant guide and inspect its implementation and tests before proposing changes. Do not invent undocumented options or runtime behavior.",
     "",
